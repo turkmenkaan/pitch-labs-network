@@ -860,3 +860,52 @@ button.star:hover {
     align-items: flex-start;
   }
 }
+
+/* --- Signed-in user chip in the top bar ---------------------------------- */
+.session {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.session-who {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.session-role {
+  color: var(--ink-faint);
+  text-transform: capitalize;
+}
+
+/* --- Auth pages (login / no-access) -------------------------------------- */
+.auth-shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 36px;
+}
+.auth-card .eyebrow {
+  color: var(--teal);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+.auth-card h1 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.auth-card .sub {
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}

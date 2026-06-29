@@ -131,7 +131,6 @@ export default async function AdvisorDashboard() {
             <p className="month-name">Monthly availability</p>
             <h2>{formatMonth(month)}</h2>
             <AvailabilityForm
-              advisorId={current.id}
               month={month}
               totalHours={availability.totalHours}
               committedHours={availability.committedHours}

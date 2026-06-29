@@ -4,12 +4,10 @@ import { useActionState } from "react";
 import { setAvailability, type ActionState } from "../actions";
 
 export function AvailabilityForm({
-  advisorId,
   month,
   totalHours,
   committedHours,
 }: {
-  advisorId: string;
   month: string;
   totalHours: number;
   committedHours: number;
@@ -21,7 +19,6 @@ export function AvailabilityForm({
 
   return (
     <form action={action} className="avail-form">
-      <input type="hidden" name="advisorId" value={advisorId} />
       <input type="hidden" name="month" value={month} />
 
       <div className="field">

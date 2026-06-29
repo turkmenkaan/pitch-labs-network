@@ -1,67 +1,59 @@
-import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import type { Advisor, Founder } from "@prisma/client";
 import { prisma } from "./db";
-
-const ADVISOR_COOKIE = "advisorId";
-const FOUNDER_COOKIE = "founderId";
-const ROLE_COOKIE = "role";
+import { createSupabaseServerClient } from "./supabase/server";
 
 export type Role = "advisor" | "founder";
 
-// Phase 1 has no real auth. We stub the "logged-in person" with cookies and a
-// "Viewing as" switcher in the header that picks any advisor or founder.
+// Identity comes from the Supabase auth session (Slack login). The authenticated
+// email is mapped to an existing Advisor or Founder row — membership is an
+// allowlist for now (unknown emails get no role and are sent to /no-access).
+// A future onboarding flow can create a row instead of redirecting.
+
+export async function getSessionEmail(): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user?.email ?? null;
+}
+
+// Non-redirecting role resolver. Advisor takes precedence if an email somehow
+// exists in both tables. Used by the OAuth callback to pick a landing page.
+export async function roleForEmail(email: string): Promise<Role | null> {
+  const advisor = await prisma.advisor.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (advisor) return "advisor";
+  const founder = await prisma.founder.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (founder) return "founder";
+  return null;
+}
 
 export async function getRole(): Promise<Role> {
-  const store = await cookies();
-  return store.get(ROLE_COOKIE)?.value === "founder" ? "founder" : "advisor";
+  const email = await getSessionEmail();
+  if (!email) redirect("/login");
+  const role = await roleForEmail(email);
+  if (!role) redirect("/no-access");
+  return role;
 }
 
-export async function getCurrentAdvisor() {
-  const store = await cookies();
-  const cookieId = store.get(ADVISOR_COOKIE)?.value;
-
-  const advisors = await prisma.advisor.findMany({ orderBy: { name: "asc" } });
-  if (advisors.length === 0) {
-    throw new Error("No advisors seeded. Run `npm run seed`.");
-  }
-
-  const current = advisors.find((a) => a.id === cookieId) ?? advisors[0];
-  return { current, advisors };
+export async function getCurrentAdvisor(): Promise<{ current: Advisor }> {
+  const email = await getSessionEmail();
+  if (!email) redirect("/login");
+  const current = await prisma.advisor.findUnique({ where: { email } });
+  if (!current) redirect("/no-access");
+  return { current };
 }
 
-export async function getCurrentFounder() {
-  const store = await cookies();
-  const cookieId = store.get(FOUNDER_COOKIE)?.value;
-
-  const founders = await prisma.founder.findMany({ orderBy: { name: "asc" } });
-  if (founders.length === 0) {
-    throw new Error("No founders seeded. Run `npm run seed`.");
-  }
-
-  const current = founders.find((f) => f.id === cookieId) ?? founders[0];
-  return { current, founders };
-}
-
-// Everything the "Viewing as" switcher needs in one shot.
-export async function getIdentity() {
-  const store = await cookies();
-  const [advisors, founders] = await Promise.all([
-    prisma.advisor.findMany({ orderBy: { name: "asc" } }),
-    prisma.founder.findMany({ orderBy: { name: "asc" } }),
-  ]);
-
-  const role: Role =
-    store.get(ROLE_COOKIE)?.value === "founder" ? "founder" : "advisor";
-  const currentAdvisorId =
-    advisors.find((a) => a.id === store.get(ADVISOR_COOKIE)?.value)?.id ??
-    advisors[0]?.id;
-  const currentFounderId =
-    founders.find((f) => f.id === store.get(FOUNDER_COOKIE)?.value)?.id ??
-    founders[0]?.id;
-
-  return {
-    role,
-    advisors,
-    founders,
-    currentId: role === "advisor" ? currentAdvisorId : currentFounderId,
-  };
+export async function getCurrentFounder(): Promise<{ current: Founder }> {
+  const email = await getSessionEmail();
+  if (!email) redirect("/login");
+  const current = await prisma.founder.findUnique({ where: { email } });
+  if (!current) redirect("/no-access");
+  return { current };
 }

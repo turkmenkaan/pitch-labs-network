@@ -1,31 +1,20 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getAvailability } from "@/lib/availability";
 import { getCurrentAdvisor, getCurrentFounder } from "@/lib/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
-// --- "Viewing as" identity switcher (stubbed auth) -----------------------
-// value is "advisor:<id>" or "founder:<id>".
-export async function setIdentity(formData: FormData) {
-  const value = String(formData.get("identity") ?? "");
-  const [kind, id] = value.split(":");
-  if ((kind !== "advisor" && kind !== "founder") || !id) return;
-
-  const store = await cookies();
-  store.set("role", kind, { path: "/", httpOnly: true });
-  if (kind === "advisor") {
-    store.set("advisorId", id, { path: "/", httpOnly: true });
-  } else {
-    store.set("founderId", id, { path: "/", httpOnly: true });
-  }
-
-  redirect(kind === "advisor" ? "/" : "/founder");
+// --- Sign out ------------------------------------------------------------
+export async function signOut() {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/login");
 }
 
 // --- Advisor updates their own dossier -----------------------------------
@@ -75,12 +64,15 @@ export async function setAvailability(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const advisorId = String(formData.get("advisorId") ?? "");
+  // Resolve the advisor from the session, never from the form, so one advisor
+  // can't set another's availability.
+  const { current } = await getCurrentAdvisor();
+  const advisorId = current.id;
   const month = String(formData.get("month") ?? "");
   const totalHours = Number(formData.get("totalHours"));
 
-  if (!advisorId || !month) {
-    return { ok: false, error: "Missing advisor or month." };
+  if (!month) {
+    return { ok: false, error: "Missing month." };
   }
   if (!Number.isFinite(totalHours) || totalHours < 0) {
     return { ok: false, error: "Enter a valid number of hours (0 or more)." };
@@ -122,6 +114,13 @@ export async function decideRequest(
     where: { id: requestId },
   });
   if (!request) return { ok: false, error: "Request not found." };
+
+  // Only the advisor the request was sent to can decide it.
+  const { current } = await getCurrentAdvisor();
+  if (request.advisorId !== current.id) {
+    return { ok: false, error: "Not your meeting." };
+  }
+
   if (request.status !== "PENDING") {
     revalidatePath("/");
     return { ok: true }; // already decided elsewhere — treat as success
@@ -189,6 +188,12 @@ export async function scheduleMeeting(
     return { ok: false, error: "Meeting not found or not accepted." };
   }
 
+  // Only the advisor on the meeting can schedule it.
+  const { current } = await getCurrentAdvisor();
+  if (request.advisorId !== current.id) {
+    return { ok: false, error: "Not your meeting." };
+  }
+
   await prisma.meetingRequest.update({
     where: { id: requestId },
     data: { scheduledAt },
@@ -216,6 +221,12 @@ export async function recordOutcome(
   });
   if (!request || request.status !== "ACCEPTED") {
     return { ok: false, error: "Meeting not found." };
+  }
+
+  // Only the advisor on the meeting can record its outcome.
+  const { current } = await getCurrentAdvisor();
+  if (request.advisorId !== current.id) {
+    return { ok: false, error: "Not your meeting." };
   }
 
   const advisorMet = met === "yes";
@@ -250,6 +261,12 @@ export async function submitFeedback(
   });
   if (!request || request.status !== "ACCEPTED" || request.advisorMet !== true) {
     return { ok: false, error: "Feedback isn't open for this meeting." };
+  }
+
+  // Only the advisor on the meeting can leave feedback.
+  const { current } = await getCurrentAdvisor();
+  if (request.advisorId !== current.id) {
+    return { ok: false, error: "Not your meeting." };
   }
 
   await prisma.meetingRequest.update({

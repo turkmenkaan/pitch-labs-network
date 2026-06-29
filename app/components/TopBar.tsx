@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getIdentity } from "@/lib/session";
-import { IdentitySwitcher } from "./IdentitySwitcher";
+import { getCurrentAdvisor, getCurrentFounder } from "@/lib/session";
+import { signOut } from "../actions";
 
 type AdvisorActive = "requests" | "dossier";
 type FounderActive = "advisors" | "profile";
@@ -12,8 +12,8 @@ export async function TopBar({
   role: "advisor" | "founder";
   active: AdvisorActive | FounderActive;
 }) {
-  const { advisors, founders, currentId } = await getIdentity();
-  const currentValue = `${role}:${currentId}`;
+  const { current } =
+    role === "advisor" ? await getCurrentAdvisor() : await getCurrentFounder();
   const home = role === "advisor" ? "/" : "/founder";
 
   return (
@@ -56,11 +56,16 @@ export async function TopBar({
           )}
         </nav>
       </div>
-      <IdentitySwitcher
-        advisors={advisors}
-        founders={founders}
-        currentValue={currentValue}
-      />
+      <div className="session">
+        <span className="session-who">
+          {current.name} <span className="session-role">· {role}</span>
+        </span>
+        <form action={signOut}>
+          <button className="btn btn-ghost" type="submit">
+            Sign out
+          </button>
+        </form>
+      </div>
     </header>
   );
 }
