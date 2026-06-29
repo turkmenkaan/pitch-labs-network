@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getSessionEmail, roleForEmail } from "@/lib/session";
+import { roleForEmail } from "@/lib/session";
 
 // OAuth callback: Supabase redirects here with a `code` after Slack login.
 // We exchange it for a session, then route to the right workspace based on
@@ -11,10 +11,12 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const email = await getSessionEmail();
-      const role = email ? await roleForEmail(email) : null;
+    // Use the user returned by the exchange directly — re-reading via a fresh
+    // client here would race the just-written session cookies.
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const email = data.user?.email;
+    if (!error && email) {
+      const role = await roleForEmail(email);
       if (role === "advisor") return NextResponse.redirect(`${origin}/`);
       if (role === "founder") return NextResponse.redirect(`${origin}/founder`);
       return NextResponse.redirect(`${origin}/no-access`);
