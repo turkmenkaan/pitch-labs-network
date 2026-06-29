@@ -1,0 +1,106 @@
+// Advisory Network Platform — Phase 1 (advisor view)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // pooled (PgBouncer) — runtime
+  directUrl = env("DIRECT_URL")     // direct connection — migrations
+}
+
+model Advisor {
+  id           String                @id @default(cuid())
+  name         String
+  email        String                @unique
+  // --- Advisor dossier (the advisor edits this themselves) ---
+  title        String // e.g. "Former CFO, Acme"
+  expertise    String // comma-separated tags
+  bio          String // short intro
+  experience   String? // notable roles / wins, longer form
+  howIHelp     String? // advising style / what they offer founders
+  location     String?
+  linkedinUrl  String?
+  availability MonthlyAvailability[]
+  requests     MeetingRequest[]
+  createdAt    DateTime              @default(now())
+}
+
+model Founder {
+  id        String           @id @default(cuid())
+  name      String
+  email     String           @unique
+  // --- Founder dossier (read-only to advisors; founder edits in a later phase) ---
+  company   String
+  oneLiner  String? // one-sentence pitch
+  stage     String? // e.g. "Pre-seed", "Seed", "Series A"
+  industry  String?
+  website   String?
+  about     String? // what they're building
+  traction  String? // progress / metrics
+  lookingFor String? // what they want from advisors
+  requests  MeetingRequest[]
+  createdAt DateTime         @default(now())
+}
+
+// Advisor sets how many hours they can give in a given month.
+// "month" is stored as "YYYY-MM". Remaining hours are derived from
+// accepted meetings in that month (see lib/availability.ts).
+model MonthlyAvailability {
+  id         String  @id @default(cuid())
+  advisor    Advisor @relation(fields: [advisorId], references: [id])
+  advisorId  String
+  month      String // "2026-06"
+  totalHours Int
+
+  @@unique([advisorId, month])
+}
+
+// status is one of: "PENDING" | "ACCEPTED" | "REJECTED"
+// (SQLite has no native enum; the union is enforced in lib/types.ts)
+model MeetingRequest {
+  id             String        @id @default(cuid())
+  advisor        Advisor       @relation(fields: [advisorId], references: [id])
+  advisorId      String
+  founder        Founder       @relation(fields: [founderId], references: [id])
+  founderId      String
+  topic          String
+  message        String
+  // Founder's estimate of how long they need; decrements advisor availability when accepted.
+  estimatedHours Int           @default(1)
+  // Which month this meeting counts against ("YYYY-MM").
+  month          String
+  status         String        @default("PENDING")
+  decisionNote   String? // optional note advisor leaves on reject/accept
+  createdAt      DateTime      @default(now())
+  decidedAt      DateTime?
+
+  // --- Meeting lifecycle (after a request is ACCEPTED) ---
+  // The date/time the advisor & founder agreed to meet.
+  scheduledAt    DateTime?
+  // Did the meeting happen? Each side answers independently (null = not asked yet).
+  advisorMet     Boolean? // advisor's answer to "did this meeting happen?"
+  founderMet     Boolean? // founder's answer (set from the founder view, later phase)
+  // Feedback the advisor leaves once a meeting has happened.
+  advisorRating  Int? // 1–5
+  advisorFeedback String?
+  outcomeRecordedAt DateTime?
+
+  notifications  AdminNotification[]
+}
+
+// Internal notifications for admins. Phase 1 only generates these on a
+// met/didn't-meet conflict between advisor and founder; the admin view that
+// surfaces them comes in a later phase.
+model AdminNotification {
+  id               String         @id @default(cuid())
+  type             String // e.g. "MEETING_CONFLICT"
+  message          String
+  meetingRequest   MeetingRequest @relation(fields: [meetingRequestId], references: [id])
+  meetingRequestId String
+  resolved         Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+
+  // One open notification of a given type per meeting (avoids duplicates).
+  @@unique([meetingRequestId, type])
+}
