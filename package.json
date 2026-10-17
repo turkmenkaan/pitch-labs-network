@@ -8,6 +8,7 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
+    "make-admin": "tsx scripts/make-admin.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "prisma": {

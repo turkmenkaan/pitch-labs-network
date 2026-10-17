@@ -1,4 +1,3 @@
-// Advisory Network Platform — Phase 1 (advisor view)
 generator client {
   provider = "prisma-client-js"
 }
@@ -21,6 +20,9 @@ model Advisor {
   howIHelp     String? // advising style / what they offer founders
   location     String?
   linkedinUrl  String?
+  // Set by an admin to block login and hide the advisor from the directory.
+  // Members with meeting history can't be deleted, only deactivated.
+  deactivatedAt DateTime?
   availability MonthlyAvailability[]
   requests     MeetingRequest[]
   createdAt    DateTime              @default(now())
@@ -39,6 +41,8 @@ model Founder {
   about     String? // what they're building
   traction  String? // progress / metrics
   lookingFor String? // what they want from advisors
+  // Set by an admin to block login (see Advisor.deactivatedAt).
+  deactivatedAt DateTime?
   requests  MeetingRequest[]
   createdAt DateTime         @default(now())
 }
@@ -81,6 +85,8 @@ model MeetingRequest {
   // Did the meeting happen? Each side answers independently (null = not asked yet).
   advisorMet     Boolean? // advisor's answer to "did this meeting happen?"
   founderMet     Boolean? // founder's answer (set from the founder view, later phase)
+  // An admin's ruling when advisor and founder disagree. Overrides advisorMet.
+  adminMet       Boolean?
   // Feedback the advisor leaves once a meeting has happened.
   advisorRating  Int? // 1–5
   advisorFeedback String?
@@ -100,7 +106,38 @@ model AdminNotification {
   meetingRequestId String
   resolved         Boolean        @default(false)
   createdAt        DateTime       @default(now())
+  // Filled in when an admin resolves a MEETING_CONFLICT.
+  resolvedAt       DateTime?
+  resolvedById     String?
+  resolutionNote   String?
 
   // One open notification of a given type per meeting (avoids duplicates).
   @@unique([meetingRequestId, type])
+}
+
+// Platform staff. Keyed by email like Advisor/Founder; an email may belong to
+// only one of the three tables (enforced in app/admin/actions.ts).
+model Admin {
+  id          String     @id @default(cuid())
+  name        String
+  email       String     @unique
+  createdAt   DateTime   @default(now())
+  createdById String?
+  auditLogs   AuditLog[]
+}
+
+// Trail of what admins did. adminName/adminEmail are copied so entries stay
+// readable after an admin is removed.
+model AuditLog {
+  id         String   @id @default(cuid())
+  admin      Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  adminId    String?
+  adminName  String
+  action     String // e.g. "member.create", "conflict.resolve"
+  targetType String // "advisor" | "founder" | "admin" | "meeting"
+  targetId   String
+  detail     String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

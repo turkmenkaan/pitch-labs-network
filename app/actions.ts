@@ -229,6 +229,10 @@ export async function recordOutcome(
     return { ok: false, error: "Not your meeting." };
   }
 
+  if (request.adminMet != null) {
+    return { ok: false, error: "An admin has already ruled on this meeting." };
+  }
+
   const advisorMet = met === "yes";
   await prisma.meetingRequest.update({
     where: { id: requestId },
@@ -259,7 +263,11 @@ export async function submitFeedback(
   const request = await prisma.meetingRequest.findUnique({
     where: { id: requestId },
   });
-  if (!request || request.status !== "ACCEPTED" || request.advisorMet !== true) {
+  if (
+    !request ||
+    request.status !== "ACCEPTED" ||
+    (request.adminMet ?? request.advisorMet) !== true
+  ) {
     return { ok: false, error: "Feedback isn't open for this meeting." };
   }
 
@@ -332,7 +340,9 @@ export async function sendMeetingRequest(
   }
 
   const advisor = await prisma.advisor.findUnique({ where: { id: advisorId } });
-  if (!advisor) return { ok: false, error: "Advisor not found." };
+  if (!advisor || advisor.deactivatedAt) {
+    return { ok: false, error: "Advisor not found." };
+  }
 
   const month = currentMonth();
 

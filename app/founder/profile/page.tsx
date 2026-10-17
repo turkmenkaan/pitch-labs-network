@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getRole, getCurrentFounder } from "@/lib/session";
+import { getRoles, getCurrentFounder } from "@/lib/session";
 import { TopBar } from "@/app/components/TopBar";
 import { FounderProfileForm } from "@/app/components/FounderProfileForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function FounderProfile() {
-  if ((await getRole()) !== "founder") redirect("/");
+  if (!(await getRoles()).includes("founder")) redirect("/");
 
   const { current } = await getCurrentFounder();
 

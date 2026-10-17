@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getRole, getCurrentFounder } from "@/lib/session";
+import { getRoles, getCurrentFounder } from "@/lib/session";
 import { getAvailability } from "@/lib/availability";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { TopBar } from "@/app/components/TopBar";
@@ -14,14 +14,14 @@ export default async function AdvisorDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if ((await getRole()) !== "founder") redirect("/");
+  if (!(await getRoles()).includes("founder")) redirect("/");
 
   const { id } = await params;
   const { current } = await getCurrentFounder();
   const month = currentMonth();
 
   const advisor = await prisma.advisor.findUnique({ where: { id } });
-  if (!advisor) notFound();
+  if (!advisor || advisor.deactivatedAt) notFound();
 
   const [availability, activeRequest] = await Promise.all([
     getAvailability(advisor.id, month),

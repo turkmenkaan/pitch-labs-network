@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const email = data.user?.email;
     if (!error && email) {
       const role = await roleForEmail(email);
+      if (role === "admin") return NextResponse.redirect(`${origin}/admin`);
       if (role === "advisor") return NextResponse.redirect(`${origin}/`);
       if (role === "founder") return NextResponse.redirect(`${origin}/founder`);
       return NextResponse.redirect(`${origin}/no-access`);

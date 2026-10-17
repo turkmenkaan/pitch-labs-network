@@ -1,8 +1,8 @@
 # Pitch Labs Network — Platform
 
-The Pitch Labs Network platform. **Advisor and Founder views are built; the Admin
-view comes next.** Auth is stubbed: a "Viewing as" switcher in the header lets you
-act as any advisor or founder (cookie-backed role + identity).
+The Pitch Labs Network platform. **Advisor, Founder and Admin views are built.**
+Sign-in is Slack (via Supabase Auth); the signed-in email is matched against an
+Admin, Advisor or Founder row (see `DEPLOY_AUTH.md`).
 
 ## Advisor view
 
@@ -49,18 +49,39 @@ Founders (under `/founder`) can:
   one-liner, stage, industry, website, about, traction, what they're looking for.
   Saved via the session's founder identity.
 
+## Admin view
+
+Admins (under `/admin`, 404 for everyone else) can:
+
+- **Overview** — hours committed vs. offered, pending requests, past-due meetings,
+  open conflicts, recent admin activity.
+- **Conflicts** — when advisor and founder disagree on whether a meeting happened,
+  see both answers and rule on it. The ruling (`MeetingRequest.adminMet`) overrides
+  the advisor's answer everywhere. Conflicts only arise once founders can answer
+  "did we meet?" (not built yet).
+- **Members** — add advisors/founders by Slack email (the allowlist), edit name/email,
+  and deactivate/reactivate. Members are never deleted: deactivating blocks login
+  and hides advisors from the founder directory.
+- **Activity** — every request across the network, filterable by month, status,
+  advisor and founder, plus an hours-by-advisor ledger.
+- **Admins** — add/remove admins (the last admin can't be removed).
+- **Audit log** — every admin mutation is recorded in `AuditLog`.
+
+An email can belong to only one of Admin / Advisor / Founder. Create the first
+admin with `npm run make-admin -- you@company.com "Your Name"`.
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript, React Server Components + Server Actions
-- Prisma 6 + SQLite (`prisma/dev.db`)
+- Prisma 6 + Postgres (Supabase), Supabase Auth (Slack OIDC)
 - Plain CSS design system in `app/globals.css` (Fraunces + Hanken Grotesk)
 
 ## Getting started
 
 ```bash
 npm install
-npx prisma migrate dev   # create the SQLite DB + schema
-npm run seed             # load sample advisors / founders / requests
+npx prisma migrate dev   # apply migrations (needs DATABASE_URL / DIRECT_URL in .env)
+ALLOW_DESTRUCTIVE_SEED=1 npm run seed   # wipes members + meetings; disposable DBs only
 npm run dev              # http://localhost:3000
 ```
 
@@ -77,7 +98,8 @@ Useful scripts:
 | `prisma/seed.ts`         | Sample data (3 advisors, 4 founders, requests, dossiers)       |
 | `lib/availability.ts`    | Derives remaining hours from accepted meetings                 |
 | `lib/meeting.ts`         | Derives a meeting's lifecycle stage from its fields            |
-| `lib/session.ts`         | Stubbed role + identity (advisor/founder) via cookies          |
+| `lib/session.ts`         | Role + identity from the Supabase session (admin/advisor/founder) |
+| `app/admin/`             | Admin area: overview, conflicts, members, activity, admins, audit log |
 | `app/actions.ts`         | Server actions for both roles (identity, availability, decide, lifecycle, dossier, send request, founder profile) |
 | `app/page.tsx`           | Advisor dashboard (root; redirects founders to `/founder`)    |
 | `app/dossier/`           | Advisor's own dossier (view + edit)                           |
@@ -92,10 +114,6 @@ Useful scripts:
   not stored.
 - Notifications to the other party (request sent, approval/rejection, scheduling)
   are stubbed (`TODO`s in `app/actions.ts`).
-- `AdminNotification` records are created on conflict but there's no admin view to
-  surface them yet.
 - The founder view does not yet let founders answer "did we meet?" (`founderMet`)
   — that's the remaining piece to fully close the conflict→admin loop from the UI.
-- Not yet built: the **admin view** (onboard users, view commitments & decisions,
-  surface notifications), real auth, and auto calendar invite + video link on
-  scheduling.
+- Not yet built: auto calendar invite + video link on scheduling.

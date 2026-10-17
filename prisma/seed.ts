@@ -17,7 +17,18 @@ function daysFromNow(days: number, hour = 14): Date {
 }
 
 async function main() {
-  // Clean slate so the seed is idempotent.
+  // The seed wipes every member and meeting. Local .env points at the shared
+  // Supabase database, so make that an explicit choice.
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "1") {
+    console.error(
+      "Refusing to seed: this deletes all advisors, founders and meetings.\n" +
+        "Re-run with ALLOW_DESTRUCTIVE_SEED=1 if the target database is disposable."
+    );
+    process.exit(1);
+  }
+
+  // Clean slate so the seed is idempotent. Admins are kept (never wiped).
+  await prisma.auditLog.deleteMany();
   await prisma.adminNotification.deleteMany();
   await prisma.meetingRequest.deleteMany();
   await prisma.monthlyAvailability.deleteMany();
@@ -255,7 +266,13 @@ async function main() {
     ],
   });
 
-  console.log("Seeded advisors, founders, and meeting requests.");
+  await prisma.admin.upsert({
+    where: { email: "admin@advisory.network" },
+    update: {},
+    create: { name: "Demo Admin", email: "admin@advisory.network" },
+  });
+
+  console.log("Seeded advisors, founders, meeting requests, and a demo admin.");
 }
 
 main()

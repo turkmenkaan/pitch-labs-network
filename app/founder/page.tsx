@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getRole, getCurrentFounder } from "@/lib/session";
+import { getRoles, getCurrentFounder } from "@/lib/session";
 import { getAvailability } from "@/lib/availability";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { TopBar } from "@/app/components/TopBar";
@@ -9,12 +9,16 @@ import { TopBar } from "@/app/components/TopBar";
 export const dynamic = "force-dynamic";
 
 export default async function FounderHome() {
-  if ((await getRole()) !== "founder") redirect("/");
+  if (!(await getRoles()).includes("founder")) redirect("/");
 
   const { current } = await getCurrentFounder();
   const month = currentMonth();
 
-  const advisors = await prisma.advisor.findMany({ orderBy: { name: "asc" } });
+  const advisors = await prisma.advisor.findMany({
+    // Listed once an admin hasn't deactivated them and their intro is filled in.
+    where: { deactivatedAt: null, bio: { not: "" } },
+    orderBy: { name: "asc" },
+  });
   const withAvailability = await Promise.all(
     advisors.map(async (a) => ({
       advisor: a,

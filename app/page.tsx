@@ -3,7 +3,7 @@ import { getCurrentAdvisor } from "@/lib/session";
 import { getAvailability } from "@/lib/availability";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { redirect } from "next/navigation";
-import { getRole } from "@/lib/session";
+import { getRoles } from "@/lib/session";
 import { getMeetingStage, type MeetingStage } from "@/lib/meeting";
 import { TopBar } from "./components/TopBar";
 import { AvailabilityForm } from "./components/AvailabilityForm";
@@ -47,8 +47,11 @@ const STAGE_ORDER: Record<MeetingStage, number> = {
 };
 
 export default async function AdvisorDashboard() {
-  // If you're viewing as a founder, send you to the founder workspace.
-  if ((await getRole()) === "founder") redirect("/founder");
+  // Route people who aren't advisors to their own workspace.
+  const roles = await getRoles();
+  if (!roles.includes("advisor")) {
+    redirect(roles.includes("admin") ? "/admin" : "/founder");
+  }
 
   const { current } = await getCurrentAdvisor();
   const month = currentMonth();

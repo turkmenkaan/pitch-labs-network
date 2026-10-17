@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
-import type { Advisor, Founder } from "@prisma/client";
+import { notFound, redirect } from "next/navigation";
+import type { Admin, Advisor, Founder } from "@prisma/client";
 import { prisma } from "./db";
 import { createSupabaseServerClient } from "./supabase/server";
 
-export type Role = "advisor" | "founder";
+export type Role = "admin" | "advisor" | "founder";
 
 // Identity comes from the Supabase auth session (Slack login). The authenticated
 // email is mapped to an existing Advisor or Founder row — membership is an
@@ -27,30 +27,53 @@ function normalizeEmail(raw: string | undefined | null): string | null {
   return cleaned || null;
 }
 
-// Non-redirecting role resolver. Advisor takes precedence if an email somehow
-// exists in both tables. Used by the OAuth callback to pick a landing page.
-export async function roleForEmail(email: string): Promise<Role | null> {
+// Every role an email holds. Deactivated members hold no role. An email can be
+// an admin and also a member (e.g. staff who advise), so this is a list.
+export async function rolesForEmail(email: string): Promise<Role[]> {
   const e = normalizeEmail(email);
-  if (!e) return null;
-  const advisor = await prisma.advisor.findUnique({
-    where: { email: e },
-    select: { id: true },
-  });
-  if (advisor) return "advisor";
-  const founder = await prisma.founder.findUnique({
-    where: { email: e },
-    select: { id: true },
-  });
-  if (founder) return "founder";
-  return null;
+  if (!e) return [];
+  const [admin, advisor, founder] = await Promise.all([
+    prisma.admin.findUnique({ where: { email: e }, select: { id: true } }),
+    prisma.advisor.findUnique({
+      where: { email: e },
+      select: { deactivatedAt: true },
+    }),
+    prisma.founder.findUnique({
+      where: { email: e },
+      select: { deactivatedAt: true },
+    }),
+  ]);
+  const roles: Role[] = [];
+  if (admin) roles.push("admin");
+  if (advisor && !advisor.deactivatedAt) roles.push("advisor");
+  if (founder && !founder.deactivatedAt) roles.push("founder");
+  return roles;
 }
 
-export async function getRole(): Promise<Role> {
+// Primary role, used by the OAuth callback to pick a landing page:
+// admin, then advisor, then founder.
+export async function roleForEmail(email: string): Promise<Role | null> {
+  return (await rolesForEmail(email))[0] ?? null;
+}
+
+// Roles of the signed-in user, for pages that need to know whether to show
+// cross-workspace links (e.g. an admin who is also an advisor).
+export async function getRoles(): Promise<Role[]> {
   const email = await getSessionEmail();
   if (!email) redirect("/login");
-  const role = await roleForEmail(email);
-  if (!role) redirect("/no-access");
-  return role;
+  const roles = await rolesForEmail(email);
+  if (roles.length === 0) redirect("/no-access");
+  return roles;
+}
+
+// Admin gate. Non-admins get a 404 rather than a redirect so the admin area
+// isn't revealed. Every admin page and server action calls this first.
+export async function getCurrentAdmin(): Promise<{ current: Admin }> {
+  const email = await getSessionEmail();
+  if (!email) redirect("/login");
+  const current = await prisma.admin.findUnique({ where: { email } });
+  if (!current) notFound();
+  return { current };
 }
 
 export async function getCurrentAdvisor(): Promise<{ current: Advisor }> {
@@ -59,7 +82,7 @@ export async function getCurrentAdvisor(): Promise<{ current: Advisor }> {
   const current = await prisma.advisor.findUnique({
     where: { email: email.toLowerCase() },
   });
-  if (!current) redirect("/no-access");
+  if (!current || current.deactivatedAt) redirect("/no-access");
   return { current };
 }
 
@@ -69,6 +92,6 @@ export async function getCurrentFounder(): Promise<{ current: Founder }> {
   const current = await prisma.founder.findUnique({
     where: { email: email.toLowerCase() },
   });
-  if (!current) redirect("/no-access");
+  if (!current || current.deactivatedAt) redirect("/no-access");
   return { current };
 }

@@ -20,6 +20,7 @@ type LifecycleFields = {
   status: string;
   scheduledAt: Date | null;
   advisorMet: boolean | null;
+  adminMet?: boolean | null;
   advisorFeedback: string | null;
 };
 
@@ -29,8 +30,10 @@ export function getMeetingStage(
 ): MeetingStage | null {
   if (m.status !== "ACCEPTED") return null;
 
-  if (m.advisorMet === false) return "DID_NOT_MEET";
-  if (m.advisorMet === true) {
+  // An admin's ruling on a conflict overrides the advisor's own answer.
+  const met = m.adminMet ?? m.advisorMet;
+  if (met === false) return "DID_NOT_MEET";
+  if (met === true) {
     return m.advisorFeedback ? "COMPLETED_MET" : "NEEDS_FEEDBACK";
   }
 
