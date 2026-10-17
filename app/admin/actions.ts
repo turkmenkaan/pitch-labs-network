@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getCurrentAdmin } from "@/lib/session";
+import { getCurrentAdmin, VIEW_AS_COOKIE } from "@/lib/session";
 import {
   emailInUse,
   isValidEmail,
@@ -230,4 +232,41 @@ export async function resolveConflict(
   revalidateAdmin();
   revalidatePath("/");
   return { ok: true, message: "Conflict resolved." };
+}
+
+// --- View as (read-only preview) -------------------------------------------
+export async function startViewingAs(formData: FormData): Promise<void> {
+  const { current: admin } = await getCurrentAdmin();
+
+  const type = String(formData.get("type") ?? "");
+  const id = String(formData.get("id") ?? "");
+  if (!isMemberType(type) || !id) redirect("/admin/members");
+
+  const member =
+    type === "advisor"
+      ? await prisma.advisor.findUnique({ where: { id } })
+      : await prisma.founder.findUnique({ where: { id } });
+  if (!member) redirect("/admin/members");
+
+  (await cookies()).set(VIEW_AS_COOKIE, `${type}:${id}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 8,
+  });
+
+  await writeAudit(
+    admin,
+    "member.view_as",
+    type,
+    id,
+    `Started a read-only preview as ${type} ${member.name}`
+  );
+  redirect(type === "advisor" ? "/" : "/founder");
+}
+
+export async function stopViewingAs(): Promise<void> {
+  (await cookies()).delete(VIEW_AS_COOKIE);
+  redirect("/admin");
 }

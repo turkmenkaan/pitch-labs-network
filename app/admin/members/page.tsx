@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { fmtDate } from "@/lib/format";
+import { ViewAsButton } from "../_components/ViewAsButton";
 import {
   ActiveToggle,
   AddMemberForm,
@@ -132,6 +133,7 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
               <td className="num">{m.meetings}</td>
               <td className="mono">{fmtDate(m.createdAt)}</td>
               <td className="row-actions">
+                <ViewAsButton type={type} id={m.id}>{m.name}</ViewAsButton>
                 <details className="adm-edit">
                   <summary className="btn btn-ghost btn-sm">Edit</summary>
                   <div className="adm-edit-panel">

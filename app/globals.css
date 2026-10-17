@@ -1536,3 +1536,59 @@ button.star:hover {
     max-width: 82vw;
   }
 }
+
+/* --- Admin preview ("view as") -------------------------------------------- */
+.preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 9px 20px;
+  background: var(--amber-tint);
+  border-bottom: 1px solid var(--amber);
+  color: var(--amber);
+  font-family: var(--font-dm-mono), ui-monospace, Menlo, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+.preview-bar b {
+  color: var(--ink);
+}
+.preview-exit {
+  background: var(--paper-raised);
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  border-radius: 4px;
+  padding: 4px 11px;
+  font-family: inherit;
+  font-size: inherit;
+}
+.preview-exit:hover {
+  background: #fff;
+}
+/* Greys out the previewed page's forms; the server refuses writes regardless. */
+body[data-preview] main form button,
+body[data-preview] main form input,
+body[data-preview] main form textarea,
+body[data-preview] main form select {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.adm-viewas {
+  display: inline-block;
+}
+.adm-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--teal);
+  cursor: pointer;
+  text-align: left;
+}
+.adm-linkbtn:hover {
+  text-decoration: underline;
+}

@@ -1,10 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getAvailability } from "@/lib/availability";
-import { getCurrentAdvisor, getCurrentFounder } from "@/lib/session";
+import {
+  getActingAdvisor,
+  getActingFounder,
+  previewBlock,
+  VIEW_AS_COOKIE,
+} from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/types";
 
@@ -14,6 +20,7 @@ export type ActionState = { ok: boolean; error?: string; message?: string } | nu
 export async function signOut() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
+  (await cookies()).delete(VIEW_AS_COOKIE);
   redirect("/login");
 }
 
@@ -22,9 +29,12 @@ export async function updateMyDossier(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   // Resolve the advisor from the session, not from the form, so one advisor
   // can't edit another's dossier.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
 
   const title = String(formData.get("title") ?? "").trim();
   const expertise = String(formData.get("expertise") ?? "").trim();
@@ -64,9 +74,12 @@ export async function setAvailability(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   // Resolve the advisor from the session, never from the form, so one advisor
   // can't set another's availability.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
   const advisorId = current.id;
   const month = String(formData.get("month") ?? "");
   const totalHours = Number(formData.get("totalHours"));
@@ -102,6 +115,9 @@ export async function decideRequest(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   const requestId = String(formData.get("requestId") ?? "");
   const decision = String(formData.get("decision") ?? ""); // ACCEPTED | REJECTED
   const decisionNote = String(formData.get("decisionNote") ?? "").trim();
@@ -116,7 +132,7 @@ export async function decideRequest(
   if (!request) return { ok: false, error: "Request not found." };
 
   // Only the advisor the request was sent to can decide it.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
   if (request.advisorId !== current.id) {
     return { ok: false, error: "Not your meeting." };
   }
@@ -167,6 +183,9 @@ export async function scheduleMeeting(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   const requestId = String(formData.get("requestId") ?? "");
   const scheduledAtRaw = String(formData.get("scheduledAt") ?? "");
 
@@ -189,7 +208,7 @@ export async function scheduleMeeting(
   }
 
   // Only the advisor on the meeting can schedule it.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
   if (request.advisorId !== current.id) {
     return { ok: false, error: "Not your meeting." };
   }
@@ -209,6 +228,9 @@ export async function recordOutcome(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   const requestId = String(formData.get("requestId") ?? "");
   const met = String(formData.get("met") ?? ""); // "yes" | "no"
 
@@ -224,7 +246,7 @@ export async function recordOutcome(
   }
 
   // Only the advisor on the meeting can record its outcome.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
   if (request.advisorId !== current.id) {
     return { ok: false, error: "Not your meeting." };
   }
@@ -249,6 +271,9 @@ export async function submitFeedback(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
   const requestId = String(formData.get("requestId") ?? "");
   const rating = Number(formData.get("rating"));
   const feedback = String(formData.get("feedback") ?? "").trim();
@@ -272,7 +297,7 @@ export async function submitFeedback(
   }
 
   // Only the advisor on the meeting can leave feedback.
-  const { current } = await getCurrentAdvisor();
+  const { current } = await getActingAdvisor();
   if (request.advisorId !== current.id) {
     return { ok: false, error: "Not your meeting." };
   }
@@ -325,7 +350,10 @@ export async function sendMeetingRequest(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const { current } = await getCurrentFounder();
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
+  const { current } = await getActingFounder();
 
   const advisorId = String(formData.get("advisorId") ?? "");
   const topic = String(formData.get("topic") ?? "").trim();
@@ -388,7 +416,10 @@ export async function updateFounderProfile(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const { current } = await getCurrentFounder();
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
+  const { current } = await getActingFounder();
 
   const name = String(formData.get("name") ?? "").trim();
   const company = String(formData.get("company") ?? "").trim();
