@@ -1,9 +1,10 @@
-export type RequestStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type RequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
 
 export const REQUEST_STATUSES: RequestStatus[] = [
   "PENDING",
   "ACCEPTED",
   "REJECTED",
+  "WITHDRAWN",
 ];
 
 // Current month as "YYYY-MM" — the month availability is tracked against.

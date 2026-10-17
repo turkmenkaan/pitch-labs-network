@@ -136,7 +136,8 @@ export default async function AdvisorDetail({
               <p className="message">
                 {activeRequest.status === "ACCEPTED"
                   ? "Accepted — you'll coordinate a time directly."
-                  : "Waiting on the advisor to accept or decline."}
+                  : "Waiting on the advisor to accept or decline."}{" "}
+                <Link href="/founder/meetings">Manage in My meetings →</Link>
               </p>
             </div>
           ) : (

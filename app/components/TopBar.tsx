@@ -4,7 +4,7 @@ import { signOut } from "../actions";
 import { PreviewBanner } from "./PreviewBanner";
 
 type AdvisorActive = "requests" | "dossier";
-type FounderActive = "advisors" | "profile";
+type FounderActive = "advisors" | "meetings" | "profile";
 
 export async function TopBar({
   role,
@@ -48,6 +48,12 @@ export async function TopBar({
                   className={active === "advisors" ? "nav-link on" : "nav-link"}
                 >
                   Advisors
+                </Link>
+                <Link
+                  href="/founder/meetings"
+                  className={active === "meetings" ? "nav-link on" : "nav-link"}
+                >
+                  My meetings
                 </Link>
                 <Link
                   href="/founder/profile"

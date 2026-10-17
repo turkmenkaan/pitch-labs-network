@@ -162,14 +162,19 @@ export async function decideRequest(
     }
   }
 
-  await prisma.meetingRequest.update({
-    where: { id: requestId },
+  // Only while still pending, so a founder's withdrawal can't be overwritten.
+  const decided = await prisma.meetingRequest.updateMany({
+    where: { id: requestId, status: "PENDING" },
     data: {
       status: decision,
       decisionNote: decisionNote || null,
       decidedAt: new Date(),
     },
   });
+  if (decided.count === 0) {
+    revalidatePath("/");
+    return { ok: true }; // decided or withdrawn in the meantime
+  }
 
   // TODO(Phase 1): notify the founder of the approval/rejection (email/in-app).
   revalidatePath("/");
@@ -456,4 +461,86 @@ export async function updateFounderProfile(
   revalidatePath("/founder/profile");
   revalidatePath("/founder");
   return { ok: true, message: "Profile saved." };
+}
+
+// Founder answers "did we meet?". Runs the same conflict check as the
+// advisor's answer, whichever side answers second.
+export async function recordFounderOutcome(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
+  const requestId = String(formData.get("requestId") ?? "");
+  const met = String(formData.get("met") ?? ""); // "yes" | "no"
+  if (met !== "yes" && met !== "no") {
+    return { ok: false, error: "Invalid answer." };
+  }
+
+  const { current } = await getActingFounder();
+
+  const request = await prisma.meetingRequest.findUnique({
+    where: { id: requestId },
+  });
+  if (!request || request.founderId !== current.id) {
+    return { ok: false, error: "Meeting not found." };
+  }
+  if (request.status !== "ACCEPTED") {
+    return { ok: false, error: "This meeting hasn't been accepted." };
+  }
+  if (request.adminMet != null) {
+    return { ok: false, error: "An admin has already ruled on this meeting." };
+  }
+  if (request.founderMet != null) {
+    return { ok: false, error: "You've already answered for this meeting." };
+  }
+  // If the advisor recorded a time, don't accept an answer before it passes.
+  if (request.scheduledAt && request.scheduledAt.getTime() > Date.now()) {
+    return { ok: false, error: "This meeting is still in the future." };
+  }
+
+  // Only set it if still unanswered (guards a double submit).
+  const updated = await prisma.meetingRequest.updateMany({
+    where: { id: requestId, founderMet: null },
+    data: { founderMet: met === "yes" },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "You've already answered for this meeting." };
+  }
+
+  await flagConflictIfAny(requestId);
+  revalidatePath("/founder/meetings");
+  revalidatePath("/");
+  return { ok: true, message: "Thanks, recorded." };
+}
+
+// Founder withdraws a request the advisor hasn't decided yet.
+export async function withdrawRequest(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+
+  const requestId = String(formData.get("requestId") ?? "");
+  const { current } = await getActingFounder();
+
+  // Atomic: only a still-pending request of this founder can be withdrawn, so
+  // it can't race with the advisor accepting.
+  const updated = await prisma.meetingRequest.updateMany({
+    where: { id: requestId, founderId: current.id, status: "PENDING" },
+    data: { status: "WITHDRAWN", decidedAt: new Date() },
+  });
+  if (updated.count === 0) {
+    return {
+      ok: false,
+      error: "This request was already decided, so it can't be withdrawn.",
+    };
+  }
+
+  revalidatePath("/founder/meetings");
+  revalidatePath("/founder");
+  revalidatePath("/");
+  return { ok: true, message: "Request withdrawn." };
 }

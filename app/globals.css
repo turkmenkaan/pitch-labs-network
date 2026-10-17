@@ -456,6 +456,10 @@ button {
   background: var(--green-tint);
   color: var(--green);
 }
+.pill-withdrawn {
+  background: var(--line);
+  color: var(--ink-soft);
+}
 .pill-rejected {
   background: var(--clay-tint);
   color: var(--clay);

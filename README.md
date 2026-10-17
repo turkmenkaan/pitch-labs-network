@@ -45,6 +45,10 @@ Founders (under `/founder`) can:
 - **Send a meeting request** from that page (topic, message, estimated hours).
   Duplicate open requests with the same advisor in a month are blocked; once sent,
   the page shows the request's status instead of the form.
+- **Track their requests** (`/founder/meetings`) — status, the advisor's decision
+  note, and any time the advisor recorded. Scheduling happens outside the app (their
+  own calendars). Founders answer "did we meet?" (feeds the admin conflict inbox) and
+  can withdraw a pending request.
 - **Create / edit their profile + dossier** (`/founder/profile`) — name, company,
   one-liner, stage, industry, website, about, traction, what they're looking for.
   Saved via the session's founder identity.
@@ -58,7 +62,7 @@ Admins (under `/admin`, 404 for everyone else) can:
 - **Conflicts** — when advisor and founder disagree on whether a meeting happened,
   see both answers and rule on it. The ruling (`MeetingRequest.adminMet`) overrides
   the advisor's answer everywhere. Conflicts only arise once founders can answer
-  "did we meet?" (not built yet).
+  "did we meet?" (`/founder/meetings`).
 - **Members** — add advisors/founders by Slack email (the allowlist), edit name/email,
   and deactivate/reactivate. Members are never deleted: deactivating blocks login
   and hides advisors from the founder directory.
@@ -109,11 +113,10 @@ Useful scripts:
 
 ## Notes / known follow-ups (later phases)
 
-- `status` is a string (`PENDING|ACCEPTED|REJECTED`) because SQLite has no native
+- `status` is a string (`PENDING|ACCEPTED|REJECTED|WITHDRAWN`) because SQLite has no native
   enum; the union lives in `lib/types.ts`. Meeting lifecycle stages are derived,
   not stored.
 - Notifications to the other party (request sent, approval/rejection, scheduling)
   are stubbed (`TODO`s in `app/actions.ts`).
-- The founder view does not yet let founders answer "did we meet?" (`founderMet`)
-  — that's the remaining piece to fully close the conflict→admin loop from the UI.
-- Not yet built: auto calendar invite + video link on scheduling.
+- Scheduling is external (no calendar invite or video link). The advisor's "record a
+  time" step still gates their "did it happen?" step.

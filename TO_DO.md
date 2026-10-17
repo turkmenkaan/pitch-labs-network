@@ -13,15 +13,19 @@ Plan agreed in chat; see "Admin view-as" below for the design.
 - [ ] "View as" entry points on the Members page (and a quick menu in the admin masthead)
 - [ ] Works for deactivated members too
 
-## 1. Founder meetings page
+## 1. Founder meetings page (done)
 
-The biggest functional gap. It also makes the admin conflict inbox usable.
+The biggest functional gap. It also makes the admin conflict inbox usable. Scheduling is
+out of scope here: pairs arrange a time in their own calendars.
 
-- [ ] `/founder/meetings`: every request with status, advisor's decision note, scheduled time
-- [ ] Founder answers "did we meet?" (sets `founderMet`, runs the existing conflict check)
-- [ ] Founder can withdraw a pending request
-- [ ] Founder sees an admin ruling when a conflict is resolved
-- [ ] Founder-side link in `TopBar`
+- [x] `/founder/meetings`: every request with status, advisor's decision note, and the
+      advisor's recorded time if there is one
+- [x] Founder answers "did we meet?" (sets `founderMet`, runs the existing conflict check)
+- [x] Founder can withdraw a pending request (new `WITHDRAWN` status)
+- [x] Founder sees an admin ruling when a conflict is resolved
+- [x] "My meetings" link in `TopBar`
+- [x] Page confirmed rendering in a founder preview. Write actions (answer, withdraw) still
+      untested in a browser; they are blocked in preview
 
 ## 2. Notifications
 
@@ -79,7 +83,9 @@ The project has none.
 - [ ] Month navigation and rollover (current month is hardcoded; a request on the 31st
       lands in the wrong month)
 - [ ] Per-user time zones (scheduled times are parsed in the server's zone)
-- [ ] Calendar invite and video link when a meeting is scheduled
+- [ ] Scheduling happens outside the app (each pair uses their own calendar), so no
+      calendar invite or video link. Follow-up: the advisor's "record a time" step still
+      gates their "did it happen?" step (`NEEDS_SCHEDULE`); make the time optional there
 - [ ] Reschedule and cancel for accepted meetings (cancelling frees the hours)
 - [ ] Advisor directory search and filter; structured expertise tags instead of a
       comma-separated string
