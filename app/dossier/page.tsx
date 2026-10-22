@@ -12,7 +12,7 @@ export default async function MyDossier() {
     <>
       <TopBar role="advisor" active="dossier" />
       <main className="shell">
-        <Link href="/" className="back-link">
+        <Link href="/advisor" className="back-link">
           ← Back to requests
         </Link>
 

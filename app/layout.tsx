@@ -22,8 +22,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pitch Labs Network — Advisor",
-  description: "Manage your monthly availability and meeting requests.",
+  title: "Pitch Labs Network",
+  description: "A members-only network connecting founders with experienced advisors.",
 };
 
 export default function RootLayout({

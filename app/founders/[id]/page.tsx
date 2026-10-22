@@ -46,7 +46,7 @@ export default async function FounderDossier({
     <>
       <TopBar role="advisor" active="requests" />
       <main className="shell">
-        <Link href="/" className="back-link">
+        <Link href="/advisor" className="back-link">
           ← Back to requests
         </Link>
 

@@ -230,7 +230,7 @@ export async function resolveConflict(
     `Ruled "${notification.meetingRequest.topic}" ${adminMet ? "did happen" : "did not happen"}: ${note}`
   );
   revalidateAdmin();
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Conflict resolved." };
 }
 

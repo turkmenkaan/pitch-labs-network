@@ -35,7 +35,7 @@ export default async function AdminLayout({
           </div>
           <AdminNav openConflicts={openConflicts} />
           <div className="adm-session">
-            {roles.includes("advisor") && <a href="/">Advisor view</a>}
+            {roles.includes("advisor") && <a href="/advisor">Advisor view</a>}
             {roles.includes("founder") && <a href="/founder">Founder view</a>}
             <span className="adm-who">{current.name}</span>
             <form action={signOut}>

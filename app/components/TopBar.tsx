@@ -15,7 +15,7 @@ export async function TopBar({
 }) {
   const { current } =
     role === "advisor" ? await getCurrentAdvisor() : await getCurrentFounder();
-  const home = role === "advisor" ? "/" : "/founder";
+  const home = role === "advisor" ? "/advisor" : "/founder";
 
   return (
     <>
@@ -29,7 +29,7 @@ export async function TopBar({
             {role === "advisor" ? (
               <>
                 <Link
-                  href="/"
+                  href="/advisor"
                   className={active === "requests" ? "nav-link on" : "nav-link"}
                 >
                   Requests

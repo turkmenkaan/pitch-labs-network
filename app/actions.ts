@@ -65,7 +65,7 @@ export async function updateMyDossier(
   });
 
   revalidatePath("/dossier");
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Dossier saved." };
 }
 
@@ -106,7 +106,7 @@ export async function setAvailability(
     create: { advisorId, month, totalHours },
   });
 
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Availability updated." };
 }
 
@@ -138,7 +138,7 @@ export async function decideRequest(
   }
 
   if (request.status !== "PENDING") {
-    revalidatePath("/");
+    revalidatePath("/advisor");
     return { ok: true }; // already decided elsewhere — treat as success
   }
 
@@ -172,12 +172,12 @@ export async function decideRequest(
     },
   });
   if (decided.count === 0) {
-    revalidatePath("/");
+    revalidatePath("/advisor");
     return { ok: true }; // decided or withdrawn in the meantime
   }
 
   // TODO(Phase 1): notify the founder of the approval/rejection (email/in-app).
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true };
 }
 
@@ -224,7 +224,7 @@ export async function scheduleMeeting(
   });
 
   // TODO(later): generate calendar invite + video link, notify the founder.
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Meeting time saved." };
 }
 
@@ -267,7 +267,7 @@ export async function recordOutcome(
   });
 
   await flagConflictIfAny(requestId);
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true };
 }
 
@@ -312,7 +312,7 @@ export async function submitFeedback(
     data: { advisorRating: rating, advisorFeedback: feedback },
   });
 
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Thanks — feedback recorded." };
 }
 
@@ -511,7 +511,7 @@ export async function recordFounderOutcome(
 
   await flagConflictIfAny(requestId);
   revalidatePath("/founder/meetings");
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Thanks, recorded." };
 }
 
@@ -541,6 +541,6 @@ export async function withdrawRequest(
 
   revalidatePath("/founder/meetings");
   revalidatePath("/founder");
-  revalidatePath("/");
+  revalidatePath("/advisor");
   return { ok: true, message: "Request withdrawn." };
 }
