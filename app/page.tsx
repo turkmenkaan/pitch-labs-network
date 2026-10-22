@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const REQUEST_ACCESS_HREF =
   "mailto:info@pitchlabs.net?subject=" +
-  encodeURIComponent("Request access to Pitch Labs Network");
+  encodeURIComponent("Request information about Pitch Labs Network");
 
 const STEPS = [
   {
@@ -85,12 +85,13 @@ export default async function LandingPage() {
           <div className="lp-cta">
             <SlackSignInButton />
             <a className="btn btn-ghost" href={REQUEST_ACCESS_HREF}>
-              Request access
+              Request information
             </a>
           </div>
           <p className="lp-note">
-            Members sign in with Slack. To join a cohort as a founder or an
-            advisor, request access and we&apos;ll reply by email.
+            Members sign in with Slack. To hear about joining a cohort as a
+            founder or an advisor, request information and we&apos;ll reply by
+            email.
           </p>
         </section>
 
@@ -105,6 +106,18 @@ export default async function LandingPage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section className="lp-section lp-cost" aria-labelledby="cost">
+          <h2 id="cost">What it costs</h2>
+          <p>
+            The year-long commitment costs less than a single hour of a
+            consultancy call. Request information and we&apos;ll send the
+            details.
+          </p>
+          <a className="btn btn-ghost" href={REQUEST_ACCESS_HREF}>
+            Request information
+          </a>
         </section>
 
         <section className="lp-section" aria-labelledby="fit">
@@ -132,7 +145,7 @@ export default async function LandingPage() {
           <div className="lp-cta">
             <SlackSignInButton />
             <a className="btn btn-ghost" href={REQUEST_ACCESS_HREF}>
-              Request access
+              Request information
             </a>
           </div>
         </section>

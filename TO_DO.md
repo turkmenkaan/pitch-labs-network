@@ -1,17 +1,19 @@
 # To do
 
-Status after the admin-role work (commit `8081287`). Roughly in priority order.
+Status after the landing page (commit `a17b745` and the copy commits after it). Roughly in priority order.
 Tick items off as they land.
 
-## 0. Admin can view both sides of the platform (next)
+## 0. Admin can view both sides of the platform (done)
 
-Plan agreed in chat; see "Admin view-as" below for the design.
+See "Admin view-as" below for the design.
 
-- [ ] Admin can open any advisor's or founder's workspace exactly as they see it
-- [ ] Preview is **read-only** (server-enforced), with an always-visible banner and an Exit button
-- [ ] Starting a preview is written to the audit log
-- [ ] "View as" entry points on the Members page (and a quick menu in the admin masthead)
-- [ ] Works for deactivated members too
+- [x] Admin can open any advisor's or founder's workspace as they see it
+- [x] Preview is **read-only** (server-enforced), with a banner and an Exit button
+- [x] Starting a preview is written to the audit log
+- [x] "View as" on Members rows and on names in Activity (masthead menu deliberately skipped)
+- [x] Works for deactivated members too
+- [ ] Not yet confirmed in a browser: "Exit preview" returns to `/admin`, and a blocked write
+      shows the "changes are disabled" message
 
 ## 1. Founder meetings page (done)
 
@@ -27,16 +29,47 @@ out of scope here: pairs arrange a time in their own calendars.
 - [x] Page confirmed rendering in a founder preview. Write actions (answer, withdraw) still
       untested in a browser; they are blocked in preview
 
-## 2. Notifications
+## 1b. Landing page (done)
 
-Today every notification is a `TODO` in `app/actions.ts`.
+- [x] Public landing page on `/`; signed-in members are redirected to their workspace
+- [x] Advisor dashboard moved to `/advisor`
+- [x] Copy: advisory network, year-long cohorts (~30 founders, ~10 advisors), a different
+      advisor each month, pricing line ("less than an hour of a consultancy call")
+- [x] "Request information" is a `mailto:info@pitchlabs.net` link
+- [ ] Look at it in a browser (only checked with curl and typecheck so far)
+- [ ] Update `/no-access` copy ("Contact an admin") and link the mailto there
+- [ ] Replace the mailto with a stored request form and admin inbox (see section 6)
+- [ ] Back up the pricing claim with a figure you can show people who ask
+- [ ] The app doesn't enforce "a different advisor each month" or the one-year cohort
 
-- [ ] Channel: Slack DM (recommended; everyone already signs in with Slack) or email
-- [ ] New request -> advisor
-- [ ] Accepted / rejected -> founder
-- [ ] Meeting scheduled -> founder
-- [ ] Conflict raised -> admins
-- [ ] Conflict resolved -> advisor and founder
+## 2. Notifications (backlogged, planned)
+
+Today every notification is a `TODO` in `app/actions.ts`. Planned in chat, not started.
+
+**Design:** an outbox table (`Notification`, with a unique `dedupeKey`), sent best-effort via
+`after()` so a Slack failure never fails the user's action. Retries with backoff plus a
+cron-protected sweeper route. Slack bot DMs (scopes `chat:write`, `im:write`, `users:read`,
+`users:read.email`), recipient looked up by email and cached in a `slackUserId` column.
+`NOTIFY_MODE=off|log|slack` plus `NOTIFY_ALLOWLIST`. **Local `.env` points at the production
+database, so local runs must default to `log`.** Admin page `/admin/notifications` for failures
+and retries.
+
+**Events:** new request -> advisor; accepted / declined -> founder; withdrawn -> advisor;
+conflict raised -> admins; conflict resolved -> advisor + founder; welcome on add member/admin;
+reminders (outcome, pending nudge, availability). Dropped: "meeting scheduled" (scheduling is
+external).
+
+**Phases:** 1 foundation, 2 core events, 3 reminders (cron), 4 later (email fallback, mute,
+in-app inbox).
+
+**Open decisions before starting:**
+- [ ] Can the existing Slack app get bot scopes and be installed? Same workspace as all members?
+- [ ] Vercel plan (Hobby cron is once a day)
+- [ ] Admin alerts: DM each admin or one channel
+- [ ] Which reminders in the first release, and the nudge delay
+- [ ] Email fallback now or later
+- [ ] Quiet hours / time zones for reminders
+- [ ] Global on/off only, or per-person mute
 
 ## 3. Go-live prep
 

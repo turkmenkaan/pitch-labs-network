@@ -1786,3 +1786,16 @@ body[data-preview] main form select {
     animation: none;
   }
 }
+
+.lp-cost p {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  line-height: 1.35;
+  max-width: 640px;
+  margin: 0 0 22px;
+}
+.lp-cost .btn {
+  text-decoration: none;
+  display: inline-block;
+  padding: 12px 22px;
+}
