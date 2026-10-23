@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 import { getRoles, getCurrentFounder } from "@/lib/session";
 import { getAvailability } from "@/lib/availability";
 import { currentMonth, formatMonth } from "@/lib/types";
+import { getFounderUsage } from "@/lib/guardrails";
 import { TopBar } from "@/app/components/TopBar";
+import { UsageMeter } from "@/app/components/UsageMeter";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export default async function FounderHome() {
     }))
   );
 
+  const usage = await getFounderUsage(prisma, current, month);
   const firstName = current.name.split(" ")[0];
 
   return (
@@ -42,6 +45,8 @@ export default async function FounderHome() {
             reach out — advisors read it first.
           </p>
         </div>
+
+        <UsageMeter usage={usage} />
 
         <div className="advisor-grid">
           {withAvailability.map(({ advisor, availability }) => {

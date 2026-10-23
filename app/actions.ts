@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getAvailability } from "@/lib/availability";
+import { checkNewRequest, getFounderUsage } from "@/lib/guardrails";
 import {
   getActingAdvisor,
   getActingFounder,
@@ -379,36 +380,28 @@ export async function sendMeetingRequest(
 
   const month = currentMonth();
 
-  // Don't let a founder stack duplicate open requests with the same advisor.
-  const existing = await prisma.meetingRequest.findFirst({
-    where: {
-      advisorId,
-      founderId: current.id,
-      month,
-      status: { in: ["PENDING", "ACCEPTED"] },
-    },
+  // Guardrails: a monthly hours cap and a per-advisor call cap (see
+  // lib/guardrails.ts). Count and insert run in one transaction under a
+  // per-founder lock so two simultaneous requests can't both slip past.
+  const error = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${current.id}))`;
+    const usage = await getFounderUsage(tx, current, month);
+    const problem = checkNewRequest(usage, advisorId, estimatedHours);
+    if (problem) return problem;
+    await tx.meetingRequest.create({
+      data: {
+        advisorId,
+        founderId: current.id,
+        topic,
+        message,
+        estimatedHours,
+        month,
+        status: "PENDING",
+      },
+    });
+    return null;
   });
-  if (existing) {
-    return {
-      ok: false,
-      error:
-        existing.status === "PENDING"
-          ? "You already have a pending request with this advisor this month."
-          : "You already have an accepted meeting with this advisor this month.",
-    };
-  }
-
-  await prisma.meetingRequest.create({
-    data: {
-      advisorId,
-      founderId: current.id,
-      topic,
-      message,
-      estimatedHours,
-      month,
-      status: "PENDING",
-    },
-  });
+  if (error) return { ok: false, error };
 
   // TODO(later): notify the advisor (email/in-app).
   revalidatePath("/founder");

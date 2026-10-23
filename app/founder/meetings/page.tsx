@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getRoles, getCurrentFounder } from "@/lib/session";
 import { fmtDateTime } from "@/lib/format";
-import { formatMonth } from "@/lib/types";
+import { currentMonth, formatMonth } from "@/lib/types";
+import { getFounderUsage } from "@/lib/guardrails";
 import { getFounderStage, type FounderStage } from "@/lib/meeting";
 import { TopBar } from "@/app/components/TopBar";
+import { UsageMeter } from "@/app/components/UsageMeter";
 import {
   FounderMeetingCard,
   type FounderMeetingView,
@@ -56,6 +58,7 @@ export default async function FounderMeetings() {
     };
   });
 
+  const usage = await getFounderUsage(prisma, current, currentMonth());
   const firstName = current.name.split(" ")[0];
 
   return (
@@ -71,6 +74,8 @@ export default async function FounderMeetings() {
             tell us here how it went.
           </p>
         </div>
+
+        <UsageMeter usage={usage} />
 
         {meetings.length === 0 ? (
           <div className="empty">

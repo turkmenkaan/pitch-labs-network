@@ -83,15 +83,41 @@ export async function updateMember(
       : await prisma.founder.findUnique({ where: { id } });
   if (!before) return { ok: false, error: "Member not found." };
 
+  // Founders only: optional overrides of the booking guardrails (blank = default).
+  let limits: { monthlyHoursLimit: number | null; advisorCallLimit: number | null } | null =
+    null;
+  if (type === "founder") {
+    const parse = (v: FormDataEntryValue | null): number | null | "bad" => {
+      const t = String(v ?? "").trim();
+      if (t === "") return null;
+      const n = Number(t);
+      return Number.isInteger(n) && n >= 1 && n <= 40 ? n : "bad";
+    };
+    const hours = parse(formData.get("monthlyHoursLimit"));
+    const calls = parse(formData.get("advisorCallLimit"));
+    if (hours === "bad" || calls === "bad") {
+      return { ok: false, error: "Limits must be whole numbers from 1 to 40, or blank." };
+    }
+    limits = { monthlyHoursLimit: hours, advisorCallLimit: calls };
+  }
+
   if (type === "advisor") {
     await prisma.advisor.update({ where: { id }, data: { name, email } });
   } else {
-    await prisma.founder.update({ where: { id }, data: { name, email } });
+    await prisma.founder.update({ where: { id }, data: { name, email, ...limits } });
   }
 
+  const show = (n: number | null | undefined) => (n == null ? "default" : String(n));
+  const prev = before as { monthlyHoursLimit?: number | null; advisorCallLimit?: number | null };
   const changes = [
     before.name !== name && `name "${before.name}" → "${name}"`,
     before.email !== email && `email ${before.email} → ${email}`,
+    limits &&
+      (prev.monthlyHoursLimit ?? null) !== limits.monthlyHoursLimit &&
+      `monthly hours limit ${show(prev.monthlyHoursLimit)} → ${show(limits.monthlyHoursLimit)}`,
+    limits &&
+      (prev.advisorCallLimit ?? null) !== limits.advisorCallLimit &&
+      `calls per advisor limit ${show(prev.advisorCallLimit)} → ${show(limits.advisorCallLimit)}`,
   ].filter(Boolean);
   if (changes.length) {
     await writeAudit(admin, "member.update", type, id, `Edited ${type}: ${changes.join(", ")}`);

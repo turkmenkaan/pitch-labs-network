@@ -42,6 +42,18 @@ out of scope here: pairs arrange a time in their own calendars.
 - [ ] Back up the pricing claim with a figure you can show people who ask
 - [ ] The app doesn't enforce "a different advisor each month" or the one-year cohort
 
+## 1c. Founder guardrails (built and committed, not pushed)
+
+- [x] Founders: 4 hours of calls a month, 2 calls per advisor (pending + accepted count;
+      declined, withdrawn and didn't-meet give time back; month = month sent)
+- [x] Enforced in `sendMeetingRequest` inside a transaction with a per-founder lock
+- [x] Usage meter on the founder pages; limits disclosed under "How it works"
+- [x] Admin override per founder (Members > Edit), written to the audit log
+- [x] First Vitest tests (`npm test`, `lib/guardrails.test.ts`)
+- [x] Migration `20261022120000_founder_limits` (two nullable Founder columns) applied to
+      the shared database
+- [ ] Try it in a browser; check the demo seed doesn't already break a limit
+
 ## 2. Notifications (backlogged, planned)
 
 Today every notification is a `TODO` in `app/actions.ts`. Planned in chat, not started.

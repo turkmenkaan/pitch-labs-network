@@ -5,12 +5,12 @@ import { sendMeetingRequest, type ActionState } from "../actions";
 
 export function SendRequestForm({
   advisorId,
-  remainingHours,
-  canRequest,
+  advisorHoursLeft,
+  maxHours,
 }: {
   advisorId: string;
-  remainingHours: number;
-  canRequest: boolean;
+  advisorHoursLeft: number;
+  maxHours: number;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     sendMeetingRequest,
@@ -60,21 +60,22 @@ export function SendRequestForm({
           name="estimatedHours"
           type="number"
           min={1}
-          max={Math.max(remainingHours, 1)}
+          max={maxHours}
           step={1}
           defaultValue={1}
           required
         />
         <p className="note">
-          {remainingHours > 0
-            ? `${remainingHours}h available this month.`
-            : "This advisor has no hours left this month — your request may wait."}
+          {`Up to ${maxHours}h, from the hours you have left. `}
+          {advisorHoursLeft > 0
+            ? `The advisor has ${advisorHoursLeft}h open this month.`
+            : "This advisor has no hours open this month, so your request may wait."}
         </p>
       </div>
 
       {state?.error && <p className="stage-error">{state.error}</p>}
 
-      <button className="btn btn-primary" disabled={pending || !canRequest}>
+      <button className="btn btn-primary" disabled={pending}>
         {pending ? "Sending…" : "Send meeting request"}
       </button>
     </form>

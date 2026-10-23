@@ -9,7 +9,8 @@
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "make-admin": "tsx scripts/make-admin.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -28,6 +29,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

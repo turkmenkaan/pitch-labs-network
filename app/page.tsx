@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getRoles, getSessionEmail } from "@/lib/session";
+import {
+  DEFAULT_CALLS_PER_ADVISOR,
+  DEFAULT_MONTHLY_HOURS,
+} from "@/lib/guardrails";
 import { SlackSignInButton } from "./login/SlackSignInButton";
 
 export const dynamic = "force-dynamic";
@@ -106,6 +110,12 @@ export default async function LandingPage() {
               </li>
             ))}
           </ol>
+          <p className="lp-rules">
+            Each founder can book up to {DEFAULT_MONTHLY_HOURS} hours of advisor
+            calls a month, with no more than {DEFAULT_CALLS_PER_ADVISOR} calls
+            with the same advisor. If a request is declined or withdrawn, or a
+            meeting doesn&apos;t happen, the hours go back to you.
+          </p>
         </section>
 
         <section className="lp-section lp-cost" aria-labelledby="cost">

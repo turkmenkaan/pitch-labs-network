@@ -47,6 +47,8 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
           deactivatedAt: a.deactivatedAt,
           createdAt: a.createdAt,
           meetings: a._count.requests,
+          monthlyHoursLimit: null as number | null,
+          advisorCallLimit: null as number | null,
         }))
       : (
           await prisma.founder.findMany({
@@ -63,6 +65,8 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
           deactivatedAt: f.deactivatedAt,
           createdAt: f.createdAt,
           meetings: f._count.requests,
+          monthlyHoursLimit: f.monthlyHoursLimit,
+          advisorCallLimit: f.advisorCallLimit,
         }));
 
   const href = (patch: Record<string, string>) => {
@@ -137,7 +141,14 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
                 <details className="adm-edit">
                   <summary className="btn btn-ghost btn-sm">Edit</summary>
                   <div className="adm-edit-panel">
-                    <EditMemberForm type={type} id={m.id} name={m.name} email={m.email} />
+                    <EditMemberForm
+                      type={type}
+                      id={m.id}
+                      name={m.name}
+                      email={m.email}
+                      monthlyHoursLimit={m.monthlyHoursLimit}
+                      advisorCallLimit={m.advisorCallLimit}
+                    />
                   </div>
                 </details>
                 <ActiveToggle type={type} id={m.id} active={!m.deactivatedAt} />

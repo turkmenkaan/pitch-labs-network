@@ -43,6 +43,10 @@ model Founder {
   lookingFor String? // what they want from advisors
   // Set by an admin to block login (see Advisor.deactivatedAt).
   deactivatedAt DateTime?
+  // Admin overrides for the booking guardrails (null = use the network default;
+  // see lib/guardrails.ts).
+  monthlyHoursLimit Int?
+  advisorCallLimit  Int?
   requests  MeetingRequest[]
   createdAt DateTime         @default(now())
 }

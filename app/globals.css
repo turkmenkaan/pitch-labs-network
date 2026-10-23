@@ -1799,3 +1799,49 @@ body[data-preview] main form select {
   display: inline-block;
   padding: 12px 22px;
 }
+
+/* Founder guardrail meter */
+.usage {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 0 0 24px;
+}
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+.usage-row b {
+  color: var(--ink);
+}
+.usage-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 10px 0 8px;
+  overflow: hidden;
+}
+.usage-bar span {
+  display: block;
+  height: 100%;
+  background: var(--teal);
+}
+.usage-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+
+.lp-rules {
+  margin: 24px 0 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--teal);
+  color: var(--ink-soft);
+  line-height: 1.6;
+  max-width: 680px;
+}

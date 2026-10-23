@@ -57,11 +57,15 @@ export function EditMemberForm({
   id,
   name,
   email,
+  monthlyHoursLimit,
+  advisorCallLimit,
 }: {
   type: "advisor" | "founder";
   id: string;
   name: string;
   email: string;
+  monthlyHoursLimit?: number | null;
+  advisorCallLimit?: number | null;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     updateMember,
@@ -79,6 +83,34 @@ export function EditMemberForm({
         <span>Slack email</span>
         <input name="email" type="email" defaultValue={email} required />
       </label>
+      {type === "founder" && (
+        <>
+          <label className="adm-field">
+            <span>Hours / month (default 4)</span>
+            <input
+              name="monthlyHoursLimit"
+              type="number"
+              min={1}
+              max={40}
+              step={1}
+              defaultValue={monthlyHoursLimit ?? ""}
+              placeholder="default"
+            />
+          </label>
+          <label className="adm-field">
+            <span>Calls per advisor (default 2)</span>
+            <input
+              name="advisorCallLimit"
+              type="number"
+              min={1}
+              max={40}
+              step={1}
+              defaultValue={advisorCallLimit ?? ""}
+              placeholder="default"
+            />
+          </label>
+        </>
+      )}
       <button className="btn btn-primary" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </button>
