@@ -80,19 +80,37 @@ admin with `npm run make-admin -- you@company.com "Your Name"`.
 - Prisma 6 + Postgres (Supabase), Supabase Auth (Slack OIDC)
 - Plain CSS design system in `app/globals.css` (Fraunces + Hanken Grotesk)
 
+## Environments
+
+| Environment | Code                         | Supabase project | Postgres schema | URL                      |
+| ----------- | ---------------------------- | ---------------- | --------------- | ------------------------ |
+| Production  | `main` (Vercel Production)   | production       | `public`        | the production domain    |
+| Staging     | `staging` (Vercel Preview)   | non-production   | `staging`       | the staging domain       |
+| Development | local `npm run dev`          | non-production   | `public`        | http://localhost:3000    |
+
+Staging and development share one non-production Supabase project and are kept
+apart by Postgres schema (`?schema=staging` on both DB URLs on the Vercel
+staging variables). Production is never reachable from a local `.env`.
+
+Release flow: feature branch -> `staging` (auto-deploys and runs
+`prisma migrate deploy`) -> check it -> `npm run db:migrate:prod` -> merge to `main`.
+
 ## Getting started
 
 ```bash
 npm install
-npx prisma migrate dev   # apply migrations (needs DATABASE_URL / DIRECT_URL in .env)
-ALLOW_DESTRUCTIVE_SEED=1 npm run seed   # wipes members + meetings; disposable DBs only
+cp .env.example .env     # fill in the NON-PRODUCTION Supabase values
+npx prisma migrate dev   # apply migrations to your dev database
+ALLOW_DESTRUCTIVE_SEED=1 npm run seed   # wipes members + meetings; refuses to run on production
 npm run dev              # http://localhost:3000
 ```
 
 Useful scripts:
 
-- `npm run seed` — re-seed the database
-- `npm run db:reset` — drop, re-migrate, and re-seed
+- `npm run seed` - re-seed the database (refuses to run against production)
+- `npm run db:reset` - drop, re-migrate, and re-seed (refuses to run against production)
+- `npm run db:migrate:staging` - apply migrations to the `staging` schema of the non-production project
+- `npm run db:migrate:prod` - apply migrations to production; reads `.env.prod-migrate` (gitignored) and asks for confirmation
 
 ## Project map
 

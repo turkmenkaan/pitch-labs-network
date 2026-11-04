@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { assertNotProduction } from "../lib/env-guard";
 
 const prisma = new PrismaClient();
 
@@ -17,6 +18,9 @@ function daysFromNow(days: number, hour = 14): Date {
 }
 
 async function main() {
+  // Never seed production, whatever ALLOW_DESTRUCTIVE_SEED says.
+  assertNotProduction("seed the database");
+
   // The seed wipes every member and meeting. Local .env points at the shared
   // Supabase database, so make that an explicit choice.
   if (process.env.ALLOW_DESTRUCTIVE_SEED !== "1") {
