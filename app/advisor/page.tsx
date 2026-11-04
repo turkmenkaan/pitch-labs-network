@@ -158,7 +158,7 @@ export default async function AdvisorDashboard() {
                 : "You haven't set availability for this month yet."}
             </p>
             <div className="bar">
-              <span style={{ width: `${pct}%` }} />
+              <span style={{ transform: `scaleX(${pct / 100})` }} />
             </div>
             <div className="legend">
               <span>

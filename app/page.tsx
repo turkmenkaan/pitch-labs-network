@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getRoles, getSessionEmail } from "@/lib/session";
 import {
@@ -12,25 +13,93 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Pitch Labs Network — Expert advisors for early-stage founders",
   description:
-    "An advisory network where early-stage founders meet a different experienced startup advisor every month, in year-long cohorts.",
+    "A year-long advisory cohort where early-stage founders get a team of experienced startup advisors in their corner.",
 };
 
 const REQUEST_ACCESS_HREF =
   "mailto:info@pitchlabs.net?subject=" +
   encodeURIComponent("Request information about Pitch Labs Network");
 
+const ADVISOR_HREF =
+  "mailto:info@pitchlabs.net?subject=" +
+  encodeURIComponent("Advising with Pitch Labs Network");
+
 const STEPS = [
   {
-    title: "Join a cohort",
-    body: "A cohort is about 30 founders and lasts a year. Once you're added, you sign in with your Slack account.",
+    title: "Apply to a cohort",
+    body: "Fill out a short application, and we'll set up an intro call to get to know you and your startup. Once you're in, you sign in with Slack and can see every advisor in the cohort.",
   },
   {
-    title: "Pick an advisor each month",
-    body: "Every advisor has a profile with their background and the hours they have open that month. Choose the one who fits your current question and send a request with a topic and the time you need.",
+    title: "Request time with advisors",
+    body: "Browse advisor profiles to see their background and availability. Choose the one whose experience fits what you're working on right now, and send a request with your topic.",
   },
   {
-    title: "Meet, then confirm",
-    body: "The advisor accepts or declines. If they accept, you find a time on your own calendars. Afterward you both confirm the meeting happened and the advisor leaves feedback.",
+    title: "Meet your advisor",
+    body: "Spend the time one on one with someone who has been where you are. Bring your hardest question and get an experienced perspective on it.",
+  },
+];
+
+// `photo` is a path under /public; without one the card shows a neutral avatar.
+const ADVISORS: { name: string; line?: string; photo?: string; linkedin?: string }[] = [
+  {
+    name: "Josh Frankel",
+    line: "Founder, Startcase. Marketing for early-stage startups.",
+    photo: "/advisors/josh-frankel.jpg",
+    linkedin: "https://www.linkedin.com/in/joshuamfrankel/",
+  },
+  {
+    name: "Christian Carello",
+    line: "Five-time founder and co-founder of The Forge.",
+    photo: "/advisors/christian-carello.jpg",
+    linkedin: "https://www.linkedin.com/in/christianjcarello/",
+  },
+  {
+    name: "Larry Cynkin",
+    line: "Consulting CTO. President of the DC CTO Club.",
+    photo: "/advisors/larry-cynkin.jpg",
+    linkedin: "https://www.linkedin.com/in/larrycynkin/",
+  },
+  {
+    name: "Cory Lebson",
+    line: "UX research consultant. Past president of UXPA International.",
+    photo: "/advisors/cory-lebson.jpg",
+    linkedin: "https://www.linkedin.com/in/lebson/",
+  },
+  {
+    name: "Lokesh Kumar",
+    line: "CTO of Sheeva.AI. AI strategy consultant.",
+    photo: "/advisors/lokesh-kumar.jpg",
+    linkedin: "https://www.linkedin.com/in/lkumar/",
+  },
+  {
+    name: "David Tucker",
+    line: "Software engineer and founder of Gloworm.",
+    photo: "/advisors/david-tucker.png",
+    linkedin: "https://www.linkedin.com/in/david-tucker-5132207/",
+  },
+  {
+    name: "Sam Wu",
+    line: "Founder and CEO of Savforce and Samssoft.",
+    photo: "/advisors/sam-wu.jpg",
+    linkedin: "https://www.linkedin.com/in/samjwu/",
+  },
+  {
+    name: "Carla Fleming",
+    line: "Fractional B2B growth and go-to-market strategist.",
+    photo: "/advisors/carla-fleming.jpg",
+    linkedin: "https://www.linkedin.com/in/flemingc/",
+  },
+  {
+    name: "Jonathan Jenkins",
+    line: "Founder, The Jenkins Advisory Group. AI strategy and governance.",
+    photo: "/advisors/jonathan-jenkins.jpg",
+    linkedin: "https://www.linkedin.com/in/jonathanpjenkins/",
+  },
+  {
+    name: "Kaan Turkmen",
+    line: "Sr. Software Engineer and board member @ DMV Petri Dish",
+    photo: "/advisors/kaan-turkmen.png",
+    linkedin: "https://www.linkedin.com/in/kaan-turkmen/",
   },
 ];
 
@@ -38,8 +107,8 @@ const FITS = [
   {
     who: "Founders",
     points: [
-      "You're early-stage and want to talk to experienced startup advisors.",
-      "Your questions change from month to month, and you'd like a different person's experience for each one.",
+      "You're building something early and want advice from people who've done it before.",
+      "Your questions span different areas, and you'd like more than one perspective.",
       "You can commit to a year alongside about 30 other founders.",
     ],
   },
@@ -75,27 +144,27 @@ export default async function LandingPage() {
 
       <main>
         <section className="lp-hero">
-          <p className="lp-eyebrow">Advisory network for early-stage founders</p>
+          <p className="lp-eyebrow">Advisory network for early-stage founders in the DMV</p>
           <h1>
-            A <em>different startup advisor</em> every month.
+            A team of <em>experienced advisors</em> in your corner.
           </h1>
           <p className="lp-lede">
-            Pitch Labs Network is an advisory network. Each cohort runs for a
-            year with about 30 early-stage founders and around 10 experienced
-            advisors from different backgrounds. Every month, each founder
-            picks the advisor whose experience fits what they&apos;re working
-            on right now, and meets them one on one.
+            Pitch Labs Network is a year-long cohort of about 30 early-stage
+            founders in the DMV (DC, Maryland, and Virginia) and around 10
+            advisors from different backgrounds, all based in the area. Instead
+            of relying on one mentor, you choose the advisors whose experience
+            fits what you&apos;re working on, and meet them one on one.
           </p>
           <div className="lp-cta">
             <SlackSignInButton />
             <a className="btn btn-ghost" href={REQUEST_ACCESS_HREF}>
-              Request information
+              Apply to next cohort
             </a>
           </div>
           <p className="lp-note">
-            Members sign in with Slack. To hear about joining a cohort as a
-            founder or an advisor, request information and we&apos;ll reply by
-            email.
+            Already a member? Sign in with Slack. Joining as a founder? Fill
+            out the application and we&apos;ll reach out to make sure
+            it&apos;s a good fit.
           </p>
         </section>
 
@@ -111,11 +180,50 @@ export default async function LandingPage() {
             ))}
           </ol>
           <p className="lp-rules">
-            Each founder can book up to {DEFAULT_MONTHLY_HOURS} hours of advisor
-            calls a month, with no more than {DEFAULT_CALLS_PER_ADVISOR} calls
-            with the same advisor. If a request is declined or withdrawn, or a
-            meeting doesn&apos;t happen, the hours go back to you.
+            Every month you have {DEFAULT_MONTHLY_HOURS} hours of advisor time
+            to spend however you like, with up to {DEFAULT_CALLS_PER_ADVISOR}{" "}
+            calls with any one advisor. If a request is declined or cancelled,
+            or a meeting doesn&apos;t happen, those hours go back to you.
           </p>
+        </section>
+
+        <section className="lp-section" aria-labelledby="advisors">
+          <h2 id="advisors">Our advisors</h2>
+          <ul className="lp-advisors">
+            {ADVISORS.map((a) => (
+              <li key={a.name}>
+                {a.photo ? (
+                  <Image
+                    className="lp-avatar"
+                    src={a.photo}
+                    alt=""
+                    width={96}
+                    height={96}
+                  />
+                ) : (
+                  <span className="lp-avatar lp-avatar-empty" aria-hidden="true" />
+                )}
+                <h3>{a.name}</h3>
+                {a.line && <p>{a.line}</p>}
+                {a.linkedin && (
+                  <a
+                    className="lp-linkedin"
+                    href={a.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${a.name} on LinkedIn`}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
+                      />
+                    </svg>
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="lp-section lp-cost" aria-labelledby="cost">
@@ -147,15 +255,22 @@ export default async function LandingPage() {
         </section>
 
         <section className="lp-close">
-          <h2>Want to join a cohort?</h2>
+          <h2>Ready to join?</h2>
           <p>
-            Already a member? Sign in. If not, email us and say whether you
-            would join as a founder or an advisor.
+            <strong>Founders:</strong>{" "}
+            apply for the next cohort and we&apos;ll set up an intro call.
           </p>
+          <p>
+            <strong>Advisors:</strong>{" "}
+            if you have startup experience worth sharing,{" "}
+            <a href={ADVISOR_HREF}>get in touch</a>{" "}
+            and we&apos;ll tell you how it works.
+          </p>
+          <p>Already a member? Sign in with Slack.</p>
           <div className="lp-cta">
             <SlackSignInButton />
             <a className="btn btn-ghost" href={REQUEST_ACCESS_HREF}>
-              Request information
+              Apply to next cohort
             </a>
           </div>
         </section>

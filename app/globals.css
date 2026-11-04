@@ -259,7 +259,9 @@ button {
   height: 100%;
   border-radius: 99px;
   background: #f4f1ea;
-  transition: width 0.4s ease;
+  width: 100%;
+  transform-origin: left;
+  transition: transform 0.4s ease;
 }
 .legend {
   display: flex;
@@ -421,8 +423,8 @@ button {
   margin-top: 12px;
   padding: 10px 14px;
   background: var(--paper);
-  border-left: 3px solid var(--line-strong);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
   font-size: 0.88rem;
   color: var(--ink-soft);
   font-style: italic;
@@ -1399,7 +1401,6 @@ button.star:hover {
 .adm-case {
   background: var(--paper-raised);
   border: 1px solid var(--line);
-  border-left: 5px solid var(--clay);
   border-radius: var(--radius);
   padding: 22px 26px 24px;
   box-shadow: var(--shadow);
@@ -1601,9 +1602,16 @@ body[data-preview] main form select {
    Landing page — public front door at "/"
    =========================================================================== */
 .lp {
+  /* Landing-page headings use Georgia; the signed-in app keeps Fraunces. */
+  --font-display: Georgia, "Times New Roman", serif;
   max-width: 1080px;
   margin: 0 auto;
   padding: 0 28px;
+}
+.lp h1,
+.lp h2,
+.lp h3 {
+  font-weight: 400;
 }
 .lp-bar {
   display: flex;
@@ -1839,9 +1847,69 @@ body[data-preview] main form select {
 
 .lp-rules {
   margin: 24px 0 0;
-  padding-left: 16px;
-  border-left: 3px solid var(--teal);
+  padding-top: 16px;
+  border-top: 1px solid var(--line-strong);
   color: var(--ink-soft);
   line-height: 1.6;
   max-width: 680px;
+}
+
+/* Landing: advisor roster */
+.lp-advisors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 32px 20px;
+}
+.lp-advisors li {
+  text-align: center;
+}
+.lp-avatar {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line-strong);
+}
+.lp-avatar-empty {
+  background:
+    radial-gradient(circle at 50% 38%, var(--line-strong) 0 17%, transparent 18%),
+    radial-gradient(ellipse at 50% 100%, var(--line-strong) 0 38%, transparent 39%),
+    var(--teal-tint);
+}
+.lp-advisors h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+.lp-advisors p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+@media (max-width: 900px) {
+  .lp-advisors {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .lp-advisors {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lp-linkedin {
+  display: inline-flex;
+  margin-top: 10px;
+  color: var(--ink-faint);
+  transition: color 0.15s ease;
+}
+.lp-linkedin:hover,
+.lp-linkedin:focus-visible {
+  color: #0a66c2;
 }
