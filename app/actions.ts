@@ -113,6 +113,13 @@ export async function setAvailability(
 }
 
 // --- Accept / reject a meeting request -----------------------------------
+// What to tell an advisor who acts on a request that is no longer pending.
+function alreadyDecided(status: string | undefined): string {
+  return status === "WITHDRAWN"
+    ? "The founder withdrew this request, so it can't be accepted or declined."
+    : "This request was already decided.";
+}
+
 export async function decideRequest(
   _prev: ActionState,
   formData: FormData
@@ -140,8 +147,7 @@ export async function decideRequest(
   }
 
   if (request.status !== "PENDING") {
-    revalidatePath("/advisor");
-    return { ok: true }; // already decided elsewhere — treat as success
+    return { ok: false, error: alreadyDecided(request.status) };
   }
 
   // Guard: accepting can't exceed remaining availability for the month.
@@ -174,8 +180,12 @@ export async function decideRequest(
     },
   });
   if (decided.count === 0) {
-    revalidatePath("/advisor");
-    return { ok: true }; // decided or withdrawn in the meantime
+    // Changed between the read above and this write.
+    const now = await prisma.meetingRequest.findUnique({
+      where: { id: requestId },
+      select: { status: true },
+    });
+    return { ok: false, error: alreadyDecided(now?.status) };
   }
 
   // TODO(Phase 1): notify the founder of the approval/rejection (email/in-app).

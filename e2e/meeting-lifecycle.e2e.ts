@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { DEFAULT_MONTHLY_HOURS } from "../lib/guardrails";
 import { db, expect, test } from "./fixtures";
 import { card, datetimeLocal, sendRequest, usageMeter } from "./helpers/flows";
@@ -161,3 +162,52 @@ test.describe("meeting times are in Eastern Time", () => {
   });
 });
 
+test.describe("a request the founder withdraws", () => {
+  // The founder sends a request, the advisor opens their dashboard, and then the
+  // founder withdraws it while that dashboard is still open.
+  async function withdrawnBehindTheirBack(
+    founder: Page,
+    advisor: Page,
+    advisorId: string
+  ) {
+    const topic = uniqueTopic("Withdrawn live");
+    await sendRequest(founder, advisorId, { topic });
+    await advisor.goto("/advisor");
+    await expect(card(advisor, topic)).toBeVisible();
+
+    await founder.goto("/founder/meetings");
+    await card(founder, topic).getByRole("button", { name: "Withdraw request" }).click();
+    await expect(card(founder, topic).locator(".pill")).toHaveText("Withdrawn");
+    return topic;
+  }
+
+  test("leaves the advisor's open dashboard when they come back to it", async ({
+    founder,
+    advisor,
+  }) => {
+    const topic = await withdrawnBehindTheirBack(founder.page, advisor.page, advisor.row.id);
+
+    // The advisor switches back to the tab: no reload needed.
+    await advisor.page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(card(advisor.page, topic)).toHaveCount(0);
+    await expect(advisor.page.getByText("0 awaiting your decision")).toBeVisible();
+  });
+
+  test("can't be accepted or declined, and the advisor is told why", async ({
+    founder,
+    advisor,
+  }) => {
+    const topic = await withdrawnBehindTheirBack(founder.page, advisor.page, advisor.row.id);
+
+    const pending = card(advisor.page, topic);
+    await pending.getByRole("button", { name: "Accept" }).click();
+    await expect(pending).toContainText("The founder withdrew this request");
+
+    await pending.getByLabel("Note to the founder").fill("Sorry, not a fit.");
+    await pending.getByRole("button", { name: "Reject" }).click();
+    await expect(pending).toContainText("The founder withdrew this request");
+
+    const stored = await db().meetingRequest.findFirstOrThrow({ where: { topic } });
+    expect(stored.status).toBe("WITHDRAWN");
+  });
+});

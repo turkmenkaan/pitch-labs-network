@@ -7,6 +7,7 @@ import { currentMonth, formatMonth } from "@/lib/types";
 import { redirect } from "next/navigation";
 import { getRoles } from "@/lib/session";
 import { canCancelMeeting, getMeetingStage, type MeetingStage } from "@/lib/meeting";
+import { AutoRefresh } from "../components/AutoRefresh";
 import { TopBar } from "../components/TopBar";
 import { AvailabilityForm } from "../components/AvailabilityForm";
 import { RequestCard, type PendingRequest } from "../components/RequestCard";
@@ -96,6 +97,7 @@ export default async function AdvisorDashboard() {
   return (
     <>
       <TopBar role="advisor" active="requests" />
+      <AutoRefresh />
 
       <main className="shell">
         <div className="page-head">

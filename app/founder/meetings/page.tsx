@@ -5,6 +5,7 @@ import { fmtMeetingTime } from "@/lib/format";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { getFounderUsage } from "@/lib/guardrails";
 import { canCancelMeeting, getFounderStage, type FounderStage } from "@/lib/meeting";
+import { AutoRefresh } from "@/app/components/AutoRefresh";
 import { TopBar } from "@/app/components/TopBar";
 import { UsageMeter } from "@/app/components/UsageMeter";
 import {
@@ -66,6 +67,7 @@ export default async function FounderMeetings() {
   return (
     <>
       <TopBar role="founder" active="meetings" />
+      <AutoRefresh />
       <main className="shell">
         <div className="page-head">
           <p className="eyebrow">Your requests</p>
