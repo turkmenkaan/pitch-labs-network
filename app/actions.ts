@@ -537,3 +537,67 @@ export async function withdrawRequest(
   revalidatePath("/advisor");
   return { ok: true, message: "Request withdrawn." };
 }
+
+// Either side can cancel an accepted meeting until it happens. Hours come back
+// to the advisor's availability and the founder's quota on their own: both are
+// derived from requests that are still ACCEPTED (or PENDING, for the founder).
+async function cancelMeeting(
+  requestId: string,
+  side: "advisor" | "founder",
+  memberId: string
+): Promise<ActionState> {
+  // Atomic: only this member's own accepted meeting, with no outcome recorded
+  // and no time that has already passed.
+  const cancelled = await prisma.meetingRequest.updateMany({
+    where: {
+      id: requestId,
+      ...(side === "advisor" ? { advisorId: memberId } : { founderId: memberId }),
+      status: "ACCEPTED",
+      advisorMet: null,
+      founderMet: null,
+      adminMet: null,
+      OR: [{ scheduledAt: null }, { scheduledAt: { gt: new Date() } }],
+    },
+    data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: side },
+  });
+
+  if (cancelled.count === 0) {
+    const request = await prisma.meetingRequest.findUnique({ where: { id: requestId } });
+    const mine =
+      request && (side === "advisor" ? request.advisorId : request.founderId) === memberId;
+    if (!request || !mine) return { ok: false, error: "Meeting not found." };
+    if (request.status === "CANCELLED") {
+      return { ok: false, error: "This meeting was already cancelled." };
+    }
+    return {
+      ok: false,
+      error:
+        "This meeting has already happened or its time has passed, so it can't be cancelled. Tell us how it went instead.",
+    };
+  }
+
+  revalidatePath("/advisor");
+  revalidatePath("/founder");
+  revalidatePath("/founder/meetings");
+  return { ok: true, message: "Meeting cancelled." };
+}
+
+export async function cancelMeetingAsAdvisor(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingAdvisor();
+  return cancelMeeting(String(formData.get("requestId") ?? ""), "advisor", current.id);
+}
+
+export async function cancelMeetingAsFounder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingFounder();
+  return cancelMeeting(String(formData.get("requestId") ?? ""), "founder", current.id);
+}

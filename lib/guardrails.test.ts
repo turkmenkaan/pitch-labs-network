@@ -44,6 +44,11 @@ describe("summarizeUsage", () => {
     );
     expect(u.hoursUsed).toBe(0);
   });
+  it("gives hours back when an accepted meeting is cancelled", () => {
+    const u = summarizeUsage([req({ status: "CANCELLED", estimatedHours: 2 })], defaults);
+    expect(u.hoursUsed).toBe(0);
+    expect(u.callsByAdvisor).toEqual({});
+  });
   it("gives hours back when the meeting did not happen", () => {
     const u = summarizeUsage(
       [req({ status: "ACCEPTED", advisorMet: false })],

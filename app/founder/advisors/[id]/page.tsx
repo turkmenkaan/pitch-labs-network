@@ -166,7 +166,7 @@ export default async function AdvisorDetail({
             <p className="note">
               {callsLeft === 0
                 ? `You've reached the limit of ${usage.limits.callsPerAdvisor} calls with ${advisor.name} this month. Try another advisor, or come back next month.`
-                : `You've used all ${usage.limits.monthlyHours} of your advisor hours this month. Withdrawn, declined and missed meetings give hours back.`}
+                : `You've used all ${usage.limits.monthlyHours} of your advisor hours this month. Withdrawn, declined, cancelled and missed meetings give hours back.`}
             </p>
           )}
         </section>

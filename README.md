@@ -128,7 +128,8 @@ npm run test:e2e                # starts `npm run dev` if it isn't running
 - Tests (`e2e/`): the meeting lifecycle (`meeting-lifecycle`), role access
   (`access-control`), founder booking limits and admin overrides
   (`booking-limits`, including a simultaneous-request race), advisor
-  availability (`availability`), conflict resolution (`conflicts`), member and
+  availability (`availability`), conflict resolution (`conflicts`), cancelling accepted meetings
+  (`cancellation`), member and
   admin management (`member-management`, `admin-management`), the admin
   "view as" preview (`view-as`), and the audit log and activity pages
   (`audit-and-activity`). Every new feature needs a test here (see `CLAUDE.md`).

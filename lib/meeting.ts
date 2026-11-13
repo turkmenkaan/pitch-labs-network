@@ -44,6 +44,28 @@ export function getMeetingStage(
     : "AWAITING_OUTCOME";
 }
 
+// An accepted meeting can be cancelled by either side until it happens: while
+// it has no recorded time or that time is still ahead, and before anyone has
+// said whether it took place. After that they report the outcome instead.
+export function canCancelMeeting(
+  m: {
+    status: string;
+    scheduledAt: Date | null;
+    advisorMet: boolean | null;
+    founderMet?: boolean | null;
+    adminMet?: boolean | null;
+  },
+  now: Date = new Date()
+): boolean {
+  return (
+    m.status === "ACCEPTED" &&
+    m.advisorMet == null &&
+    m.founderMet == null &&
+    m.adminMet == null &&
+    (m.scheduledAt == null || m.scheduledAt.getTime() > now.getTime())
+  );
+}
+
 export const STAGE_LABELS: Record<MeetingStage, string> = {
   NEEDS_SCHEDULE: "Needs a time",
   UPCOMING: "Upcoming",
@@ -60,6 +82,7 @@ export const STAGE_LABELS: Record<MeetingStage, string> = {
 //
 //   WAITING_ADVISOR          pending, advisor hasn't decided
 //   DECLINED / WITHDRAWN     closed without a meeting
+//   CANCELLED                accepted, then either side cancelled before it happened
 //   ACCEPTED                 accepted, no time recorded: arrange it directly
 //   UPCOMING                 accepted, advisor recorded a time that's ahead
 //   NEEDS_ANSWER             a recorded time has passed and the founder hasn't
@@ -73,6 +96,7 @@ export type FounderStage =
   | "WAITING_ADVISOR"
   | "DECLINED"
   | "WITHDRAWN"
+  | "CANCELLED"
   | "ACCEPTED"
   | "UPCOMING"
   | "NEEDS_ANSWER"
@@ -97,6 +121,7 @@ export function getFounderStage(
   if (m.status === "PENDING") return "WAITING_ADVISOR";
   if (m.status === "REJECTED") return "DECLINED";
   if (m.status === "WITHDRAWN") return "WITHDRAWN";
+  if (m.status === "CANCELLED") return "CANCELLED";
 
   // ACCEPTED from here on.
   if (m.adminMet != null) return "RULED";
@@ -115,6 +140,7 @@ export const FOUNDER_STAGE_LABELS: Record<FounderStage, string> = {
   WAITING_ADVISOR: "Pending",
   DECLINED: "Declined",
   WITHDRAWN: "Withdrawn",
+  CANCELLED: "Cancelled",
   ACCEPTED: "Accepted",
   UPCOMING: "Upcoming",
   NEEDS_ANSWER: "Did it happen?",

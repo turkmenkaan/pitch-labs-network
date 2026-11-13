@@ -11,7 +11,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: SP 
   const sp = await searchParams;
   const nowMonth = currentMonth();
   const month = one(sp.month) || nowMonth; // "all" = every month
-  const status = ["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN"].includes(one(sp.status)) ? one(sp.status) : "";
+  const status = ["PENDING", "ACCEPTED", "REJECTED", "WITHDRAWN", "CANCELLED"].includes(one(sp.status)) ? one(sp.status) : "";
   const advisorId = one(sp.advisor);
   const founderId = one(sp.founder);
 
@@ -72,6 +72,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: SP 
           <option value="ACCEPTED">Accepted</option>
           <option value="REJECTED">Rejected</option>
           <option value="WITHDRAWN">Withdrawn</option>
+          <option value="CANCELLED">Cancelled</option>
         </select>
         <select name="advisor" defaultValue={advisorId} aria-label="Advisor">
           <option value="">Any advisor</option>

@@ -7,6 +7,7 @@ import {
   withdrawRequest,
   type ActionState,
 } from "../actions";
+import { CancelMeeting } from "./CancelMeeting";
 import { FOUNDER_STAGE_LABELS, type FounderStage } from "@/lib/meeting";
 
 export type FounderMeetingView = {
@@ -21,12 +22,15 @@ export type FounderMeetingView = {
   scheduledAtLabel: string | null;
   decisionNote: string | null;
   adminRuling: { met: boolean; note: string | null } | null;
+  canCancel: boolean;
+  cancelledBy: string | null; // "advisor" | "founder"
 };
 
 const STAGE_PILL: Record<FounderStage, string> = {
   WAITING_ADVISOR: "pill-pending",
   DECLINED: "pill-rejected",
   WITHDRAWN: "pill-withdrawn",
+  CANCELLED: "pill-withdrawn",
   ACCEPTED: "pill-accepted",
   UPCOMING: "pill-upcoming",
   NEEDS_ANSWER: "pill-pending",
@@ -118,6 +122,15 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
         </p>
       )}
 
+      {m.stage === "CANCELLED" && (
+        <p className="stage-prompt muted" style={{ marginTop: 12 }}>
+          {m.cancelledBy === "advisor"
+            ? `${m.advisorName} cancelled this meeting.`
+            : "You cancelled this meeting."}{" "}
+          The {m.estimatedHours}h are back in your monthly quota.
+        </p>
+      )}
+
       {m.stage === "ACCEPTED" && (
         <div className="stage-form">
           <p className="stage-prompt">
@@ -136,6 +149,17 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
           {m.advisorName} noted <b>{m.scheduledAtLabel}</b>. We&apos;ll ask how it
           went once that time has passed.
         </p>
+      )}
+
+      {m.canCancel && (
+        <div className="stage-form">
+          <CancelMeeting
+            requestId={m.id}
+            side="founder"
+            otherName={m.advisorName}
+            hours={m.estimatedHours}
+          />
+        </div>
       )}
 
       {m.stage === "NEEDS_ANSWER" && <AnswerForm m={m} />}

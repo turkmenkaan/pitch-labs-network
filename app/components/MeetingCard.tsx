@@ -9,6 +9,7 @@ import {
   type ActionState,
 } from "../actions";
 import type { MeetingStage } from "@/lib/meeting";
+import { CancelMeeting } from "./CancelMeeting";
 import { STAGE_LABELS } from "@/lib/meeting";
 
 export type MeetingView = {
@@ -24,6 +25,7 @@ export type MeetingView = {
   advisorRating: number | null;
   advisorFeedback: string | null;
   hasConflict: boolean;
+  canCancel: boolean;
 };
 
 const STAGE_PILL: Record<MeetingStage, string> = {
@@ -202,6 +204,17 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
           Marked as didn&apos;t happen.
           {m.hasConflict && " The founder reported otherwise — flagged to admins."}
         </p>
+      )}
+
+      {m.canCancel && (
+        <div className="stage-form">
+          <CancelMeeting
+            requestId={m.id}
+            side="advisor"
+            otherName={m.founderName}
+            hours={m.estimatedHours}
+          />
+        </div>
       )}
 
       {m.hasConflict && m.stage !== "DID_NOT_MEET" && (

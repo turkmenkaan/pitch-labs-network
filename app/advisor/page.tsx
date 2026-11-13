@@ -4,7 +4,7 @@ import { getAvailability } from "@/lib/availability";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { redirect } from "next/navigation";
 import { getRoles } from "@/lib/session";
-import { getMeetingStage, type MeetingStage } from "@/lib/meeting";
+import { canCancelMeeting, getMeetingStage, type MeetingStage } from "@/lib/meeting";
 import { TopBar } from "../components/TopBar";
 import { AvailabilityForm } from "../components/AvailabilityForm";
 import { RequestCard, type PendingRequest } from "../components/RequestCard";
@@ -68,6 +68,7 @@ export default async function AdvisorDashboard() {
   const pending = requests.filter((r) => r.status === "PENDING");
   const accepted = requests.filter((r) => r.status === "ACCEPTED");
   const rejected = requests.filter((r) => r.status === "REJECTED");
+  const cancelled = requests.filter((r) => r.status === "CANCELLED");
 
   const toCard = (r: (typeof requests)[number]): PendingRequest => ({
     id: r.id,
@@ -97,6 +98,7 @@ export default async function AdvisorDashboard() {
       hasConflict: r.notifications.some(
         (n) => n.type === "MEETING_CONFLICT" && !n.resolved
       ),
+      canCancel: canCancelMeeting(r),
     };
   };
 
@@ -245,6 +247,37 @@ export default async function AdvisorDashboard() {
                   {r.decisionNote && (
                     <p className="decision-note">{r.decisionNote}</p>
                   )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Cancelled ---------------------------------------------------- */}
+        {cancelled.length > 0 && (
+          <section style={{ marginTop: 48 }}>
+            <div className="section-label">
+              <h2>Cancelled</h2>
+              <span className="count">{cancelled.length}</span>
+            </div>
+            <div className="requests">
+              {cancelled.map((r) => (
+                <article key={r.id} className="card mini">
+                  <div className="req-top">
+                    <div>
+                      <h3>{r.topic}</h3>
+                      <p className="founder">
+                        {r.founder.name} · {r.founder.company} · {r.estimatedHours}h
+                      </p>
+                    </div>
+                    <span className="pill pill-withdrawn">Cancelled</span>
+                  </div>
+                  <p className="decision-note">
+                    {r.cancelledBy === "founder"
+                      ? `${r.founder.name} cancelled this meeting.`
+                      : "You cancelled this meeting."}{" "}
+                    The hours are back in your availability.
+                  </p>
                 </article>
               ))}
             </div>

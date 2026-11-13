@@ -458,7 +458,8 @@ button {
   background: var(--green-tint);
   color: var(--green);
 }
-.pill-withdrawn {
+.pill-withdrawn,
+.pill-cancelled {
   background: var(--line);
   color: var(--ink-soft);
 }

@@ -4,7 +4,7 @@ import { getRoles, getCurrentFounder } from "@/lib/session";
 import { fmtDateTime } from "@/lib/format";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { getFounderUsage } from "@/lib/guardrails";
-import { getFounderStage, type FounderStage } from "@/lib/meeting";
+import { canCancelMeeting, getFounderStage, type FounderStage } from "@/lib/meeting";
 import { TopBar } from "@/app/components/TopBar";
 import { UsageMeter } from "@/app/components/UsageMeter";
 import {
@@ -22,7 +22,7 @@ const SECTIONS: { title: string; stages: FounderStage[]; empty?: string }[] = [
     title: "Past",
     stages: ["AWAITING_ADVISOR", "UNDER_REVIEW", "RULED", "COMPLETED", "DID_NOT_MEET"],
   },
-  { title: "Declined & withdrawn", stages: ["DECLINED", "WITHDRAWN"] },
+  { title: "Declined, withdrawn & cancelled", stages: ["DECLINED", "WITHDRAWN", "CANCELLED"] },
 ];
 
 export default async function FounderMeetings() {
@@ -54,6 +54,8 @@ export default async function FounderMeetings() {
         r.adminMet != null
           ? { met: r.adminMet, note: ruling?.resolutionNote ?? null }
           : null,
+      canCancel: canCancelMeeting(r),
+      cancelledBy: r.cancelledBy,
       sortKey: r.createdAt.getTime(),
     };
   });

@@ -95,6 +95,10 @@ model MeetingRequest {
   advisorRating  Int? // 1–5
   advisorFeedback String?
   outcomeRecordedAt DateTime?
+  // Set when either side cancels an accepted meeting before it happens
+  // (status becomes CANCELLED); cancelledBy is "advisor" or "founder".
+  cancelledAt    DateTime?
+  cancelledBy    String?
 
   notifications  AdminNotification[]
 }
