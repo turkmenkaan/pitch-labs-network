@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { getRoles, getSessionEmail } from "@/lib/session";
+import { getPreview, getRoles, getSessionEmail, landingPath } from "@/lib/session";
 import {
   DEFAULT_CALLS_PER_ADVISOR,
   DEFAULT_MONTHLY_HOURS,
@@ -124,11 +124,14 @@ const FITS = [
 
 export default async function LandingPage() {
   // Signed-in members skip the pitch and land in their own workspace.
-  if (await getSessionEmail()) {
+  const email = await getSessionEmail();
+  if (email) {
     const roles = await getRoles();
     if (roles.includes("admin")) redirect("/admin");
-    if (roles.includes("advisor")) redirect("/advisor");
-    redirect("/founder");
+    // A preview shows the workspace as it is; real members finish their profile first.
+    const landing = (await getPreview()) ? null : await landingPath(email);
+    if (roles.includes("advisor")) redirect(landing ?? "/advisor");
+    redirect(landing ?? "/founder");
   }
 
   return (

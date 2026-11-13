@@ -6,7 +6,12 @@ import { FounderProfileForm } from "@/app/components/FounderProfileForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function FounderProfile() {
+export default async function FounderProfile({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const { welcome } = await searchParams;
   if (!(await getRoles()).includes("founder")) redirect("/");
 
   const { current } = await getCurrentFounder();
@@ -20,9 +25,13 @@ export default async function FounderProfile() {
         </Link>
 
         <div className="page-head">
-          <p className="eyebrow">Your profile &amp; dossier</p>
+          <p className="eyebrow">
+            {welcome ? "Welcome — start here" : "Your profile & dossier"}
+          </p>
           <h1>{current.company}</h1>
           <p className="sub">
+            {welcome &&
+              "Add your company and what you're building before you reach out. You can skip this and browse advisors first. "}
             This is what advisors see when you send a meeting request. The more
             context you give, the better the advice you&apos;ll get back.
           </p>

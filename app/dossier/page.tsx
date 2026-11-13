@@ -5,7 +5,12 @@ import { MyDossierForm } from "@/app/components/MyDossierForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function MyDossier() {
+export default async function MyDossier({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const { welcome } = await searchParams;
   const { current } = await getCurrentAdvisor();
 
   return (
@@ -17,9 +22,11 @@ export default async function MyDossier() {
         </Link>
 
         <div className="page-head">
-          <p className="eyebrow">Your dossier</p>
+          <p className="eyebrow">{welcome ? "Welcome — start here" : "Your dossier"}</p>
           <h1>{current.name}</h1>
           <p className="sub">
+            {welcome &&
+              "Founders can find you once your expertise and bio are filled in. You can skip this and look at your requests first. "}
             This is what founders see when they browse the network. Keep it
             current — it&apos;s how they decide who to reach out to.
           </p>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { fmtDate } from "@/lib/format";
+import { isAdvisorProfileComplete, isFounderProfileComplete } from "@/lib/profile";
 import { ViewAsButton } from "../_components/ViewAsButton";
 import {
   ActiveToggle,
@@ -43,7 +44,7 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
           name: a.name,
           email: a.email,
           detail: a.title || "—",
-          profileDone: Boolean(a.bio && a.expertise),
+          profileDone: isAdvisorProfileComplete(a),
           deactivatedAt: a.deactivatedAt,
           createdAt: a.createdAt,
           meetings: a._count.requests,
@@ -61,7 +62,7 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
           name: f.name,
           email: f.email,
           detail: f.company || "—",
-          profileDone: Boolean(f.company && f.about),
+          profileDone: isFounderProfileComplete(f),
           deactivatedAt: f.deactivatedAt,
           createdAt: f.createdAt,
           meetings: f._count.requests,

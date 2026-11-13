@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Admin, Advisor, Founder } from "@prisma/client";
 import { prisma } from "./db";
 import { createSupabaseServerClient } from "./supabase/server";
+import { isAdvisorProfileComplete, isFounderProfileComplete } from "./profile";
 
 export type Role = "admin" | "advisor" | "founder";
 
@@ -56,6 +57,26 @@ export async function rolesForEmail(email: string): Promise<Role[]> {
 // admin, then advisor, then founder.
 export async function roleForEmail(email: string): Promise<Role | null> {
   return (await rolesForEmail(email))[0] ?? null;
+}
+
+// Where a member lands after signing in: their workspace, or their profile
+// while it is unfinished (they can leave it for the workspace and aren't sent
+// back until their next sign-in). Null when the email holds no role.
+export async function landingPath(email: string): Promise<string | null> {
+  const roles = await rolesForEmail(email);
+  const e = normalizeEmail(email);
+  if (roles.includes("admin")) return "/admin";
+  if (e && roles.includes("advisor")) {
+    const advisor = await prisma.advisor.findUnique({ where: { email: e } });
+    return advisor && !isAdvisorProfileComplete(advisor) ? "/dossier?welcome=1" : "/advisor";
+  }
+  if (e && roles.includes("founder")) {
+    const founder = await prisma.founder.findUnique({ where: { email: e } });
+    return founder && !isFounderProfileComplete(founder)
+      ? "/founder/profile?welcome=1"
+      : "/founder";
+  }
+  return null;
 }
 
 // --- Admin "view as" preview ------------------------------------------------
