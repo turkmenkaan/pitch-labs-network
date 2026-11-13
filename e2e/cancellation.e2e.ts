@@ -275,3 +275,33 @@ test("cancelling needs a reason", async ({ advisor, founder }) => {
   ).toBe("ACCEPTED");
 });
 
+test("on an upcoming meeting, Reschedule and Cancel sit side by side", async ({
+  advisor,
+  founder,
+}) => {
+  const topic = uniqueTopic("Side by side");
+  await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+    scheduledAt: tomorrow(),
+  });
+
+  await advisor.page.goto("/advisor");
+  const meeting = card(advisor.page, topic);
+  const reschedule = meeting.getByRole("button", { name: "Reschedule", exact: true });
+  const cancel = meeting.getByRole("button", { name: "Cancel meeting", exact: true });
+  const [a, b] = [await reschedule.boundingBox(), await cancel.boundingBox()];
+  expect(Math.abs(a!.y - b!.y)).toBeLessThan(4); // same row
+  expect(b!.x).toBeGreaterThan(a!.x); // Cancel to the right of Reschedule
+
+  // They open one panel at a time.
+  await reschedule.click();
+  await expect(meeting.locator('input[name="scheduledAt"]')).toBeVisible();
+  await cancel.click();
+  await expect(meeting.getByLabel(/^Reason/)).toBeVisible();
+  await expect(meeting.locator('input[name="scheduledAt"]')).toHaveCount(0);
+  await cancel.click();
+  await expect(meeting.getByLabel(/^Reason/)).toHaveCount(0);
+});

@@ -9,7 +9,7 @@ import {
   type ActionState,
 } from "../actions";
 import type { MeetingStage } from "@/lib/meeting";
-import { CancelMeeting } from "./CancelMeeting";
+import { CancelForm, CancelMeeting } from "./CancelMeeting";
 import { STAGE_LABELS } from "@/lib/meeting";
 
 export type MeetingView = {
@@ -81,6 +81,47 @@ function ScheduleForm({ m }: { m: MeetingView }) {
       <p className="stage-prompt muted">All times are in Eastern Time (ET).</p>
       {state?.error && <p className="stage-error">{state.error}</p>}
     </form>
+  );
+}
+
+// An upcoming meeting can be rescheduled or cancelled. The two sit side by side
+// and open one panel below, one at a time.
+function UpcomingActions({ m }: { m: MeetingView }) {
+  const [open, setOpen] = useState<"reschedule" | "cancel" | null>(null);
+  const toggle = (which: "reschedule" | "cancel") =>
+    setOpen(open === which ? null : which);
+  return (
+    <>
+      <div className="stage-toggles">
+        <button
+          type="button"
+          className="stage-toggle"
+          aria-expanded={open === "reschedule"}
+          onClick={() => toggle("reschedule")}
+        >
+          Reschedule
+        </button>
+        {m.canCancel && (
+          <button
+            type="button"
+            className="stage-toggle"
+            aria-expanded={open === "cancel"}
+            onClick={() => toggle("cancel")}
+          >
+            Cancel meeting
+          </button>
+        )}
+      </div>
+      {open === "reschedule" && <ScheduleForm m={m} />}
+      {open === "cancel" && (
+        <CancelForm
+          requestId={m.id}
+          side="advisor"
+          otherName={m.founderName}
+          hours={m.estimatedHours}
+        />
+      )}
+    </>
   );
 }
 
@@ -171,10 +212,7 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
             Confirmed for <b>{m.scheduledAtLabel}</b>. We&apos;ll ask how it went
             once the time passes.
           </p>
-          <details className="reschedule">
-            <summary>Reschedule</summary>
-            <ScheduleForm m={m} />
-          </details>
+          <UpcomingActions m={m} />
         </div>
       )}
 
@@ -207,7 +245,7 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
         </p>
       )}
 
-      {m.canCancel && (
+      {m.canCancel && m.stage !== "UPCOMING" && (
         <div className="stage-form">
           <CancelMeeting
             requestId={m.id}

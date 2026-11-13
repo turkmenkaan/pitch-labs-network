@@ -635,6 +635,26 @@ button.star:hover {
 .reschedule > summary:hover {
   text-decoration: underline;
 }
+/* Reschedule / Cancel meeting links side by side; one panel opens below. */
+.stage-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-top: 10px;
+}
+.stage-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--teal);
+  cursor: pointer;
+}
+.stage-toggle:hover,
+.stage-toggle[aria-expanded="true"] {
+  text-decoration: underline;
+}
 .reschedule .stage-form {
   border-top: none;
   padding-top: 8px;
