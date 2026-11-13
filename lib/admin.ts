@@ -9,20 +9,38 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// An email may belong to only one of Admin / Advisor / Founder, otherwise
-// role resolution at login gets ambiguous. `except` lets an edit keep its own.
-export async function emailInUse(
+export type MemberRole = "admin" | "advisor" | "founder";
+
+// One email may hold several roles (say an advisor who is also a founder), but
+// only one row per role. `exceptId` lets an edit keep its own email.
+export async function emailInRole(
+  role: MemberRole,
   email: string,
-  except?: { type: "admin" | "advisor" | "founder"; id: string }
+  exceptId?: string
 ): Promise<boolean> {
+  const where = { email };
+  const select = { id: true };
+  const row =
+    role === "admin"
+      ? await prisma.admin.findUnique({ where, select })
+      : role === "advisor"
+        ? await prisma.advisor.findUnique({ where, select })
+        : await prisma.founder.findUnique({ where, select });
+  return row != null && row.id !== exceptId;
+}
+
+// Every role row (deactivated or not) that holds this email.
+export async function rolesHeldBy(email: string): Promise<MemberRole[]> {
   const [admin, advisor, founder] = await Promise.all([
     prisma.admin.findUnique({ where: { email }, select: { id: true } }),
     prisma.advisor.findUnique({ where: { email }, select: { id: true } }),
     prisma.founder.findUnique({ where: { email }, select: { id: true } }),
   ]);
-  const hit = (type: string, row: { id: string } | null) =>
-    row != null && !(except?.type === type && except.id === row.id);
-  return hit("admin", admin) || hit("advisor", advisor) || hit("founder", founder);
+  const held: MemberRole[] = [];
+  if (admin) held.push("admin");
+  if (advisor) held.push("advisor");
+  if (founder) held.push("founder");
+  return held;
 }
 
 export async function writeAudit(

@@ -1934,3 +1934,32 @@ body[data-preview] main form select {
 .lp-linkedin:focus-visible {
   color: #0a66c2;
 }
+
+/* --- Role switcher (people who hold more than one role) ------------------- */
+.role-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.role-switch form {
+  margin: 0;
+}
+.role-switch-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--teal);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.role-switch-btn:hover {
+  text-decoration: underline;
+}
+.adm-role-switch .role-switch-btn {
+  color: var(--ink-soft);
+}
+.adm-role-switch .role-switch-btn:hover {
+  color: var(--teal);
+  text-decoration: none;
+}

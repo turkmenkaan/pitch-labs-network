@@ -39,7 +39,7 @@ export default async function AdminsPage() {
 
       <section className="adm-add">
         <h2>Add an admin</h2>
-        <p className="adm-sub">The email must not already belong to an advisor or founder.</p>
+        <p className="adm-sub">An advisor or founder can also be an admin: use the same email.</p>
         <AddAdminForm />
       </section>
     </>

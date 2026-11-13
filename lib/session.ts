@@ -53,6 +53,16 @@ export async function rolesForEmail(email: string): Promise<Role[]> {
   return roles;
 }
 
+// The role a multi-role person last switched to. Only a preference: roles
+// always come from the email lookup, so a forged cookie grants nothing.
+export const LAST_ROLE_COOKIE = "last_role";
+
+export const ROLE_HOME: Record<Role, string> = {
+  admin: "/admin",
+  advisor: "/advisor",
+  founder: "/founder",
+};
+
 // Primary role, used by the OAuth callback to pick a landing page:
 // admin, then advisor, then founder.
 export async function roleForEmail(email: string): Promise<Role | null> {
@@ -65,12 +75,16 @@ export async function roleForEmail(email: string): Promise<Role | null> {
 export async function landingPath(email: string): Promise<string | null> {
   const roles = await rolesForEmail(email);
   const e = normalizeEmail(email);
-  if (roles.includes("admin")) return "/admin";
-  if (e && roles.includes("advisor")) {
+  // Someone with several roles lands on the one they used last, if they still
+  // hold it; otherwise admin, then advisor, then founder.
+  const last = (await cookies()).get(LAST_ROLE_COOKIE)?.value;
+  const role = roles.find((r) => r === last) ?? roles[0];
+  if (role === "admin") return "/admin";
+  if (e && role === "advisor") {
     const advisor = await prisma.advisor.findUnique({ where: { email: e } });
     return advisor && !isAdvisorProfileComplete(advisor) ? "/dossier?welcome=1" : "/advisor";
   }
-  if (e && roles.includes("founder")) {
+  if (e && role === "founder") {
     const founder = await prisma.founder.findUnique({ where: { email: e } });
     return founder && !isFounderProfileComplete(founder)
       ? "/founder/profile?welcome=1"

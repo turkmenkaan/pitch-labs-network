@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentAdvisor, getCurrentFounder } from "@/lib/session";
 import { signOut } from "../actions";
 import { PreviewBanner } from "./PreviewBanner";
+import { RoleSwitcher } from "./RoleSwitcher";
 
 type AdvisorActive = "requests" | "dossier";
 type FounderActive = "advisors" | "meetings" | "profile";
@@ -66,6 +67,7 @@ export async function TopBar({
           </nav>
         </div>
         <div className="session">
+          <RoleSwitcher current={role} />
           <span className="session-who">
             {current.name} <span className="session-role">· {role}</span>
           </span>

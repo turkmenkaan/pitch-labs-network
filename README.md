@@ -71,8 +71,11 @@ Admins (under `/admin`, 404 for everyone else) can:
 - **Admins** — add/remove admins (the last admin can't be removed).
 - **Audit log** — every admin mutation is recorded in `AuditLog`.
 
-An email can belong to only one of Admin / Advisor / Founder. Create the first
-admin with `npm run make-admin -- you@company.com "Your Name"`.
+One email can hold several roles (for example advisor and founder, or advisor
+and admin), with at most one row per role. People with more than one role get a
+switcher in the top bar and land on the workspace they used last. Changing the
+email of one role moves all of that person's roles. Nobody can request a meeting
+with themselves. Create the first admin with `npm run make-admin -- you@company.com "Your Name"`.
 
 ## Stack
 

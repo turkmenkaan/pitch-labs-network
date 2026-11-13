@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { getCurrentAdmin, rolesForEmail } from "@/lib/session";
+import { getCurrentAdmin } from "@/lib/session";
 import { signOut } from "../actions";
+import { RoleSwitcher } from "../components/RoleSwitcher";
 import { AdminNav } from "./_components/AdminNav";
 
 export const metadata: Metadata = {
@@ -18,10 +19,9 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const { current } = await getCurrentAdmin();
-  const [openConflicts, roles] = await Promise.all([
-    prisma.adminNotification.count({ where: { resolved: false } }),
-    rolesForEmail(current.email),
-  ]);
+  const openConflicts = await prisma.adminNotification.count({
+    where: { resolved: false },
+  });
 
   return (
     <div className="adm">
@@ -35,8 +35,7 @@ export default async function AdminLayout({
           </div>
           <AdminNav openConflicts={openConflicts} />
           <div className="adm-session">
-            {roles.includes("advisor") && <a href="/advisor">Advisor view</a>}
-            {roles.includes("founder") && <a href="/founder">Founder view</a>}
+            <RoleSwitcher current="admin" className="role-switch adm-role-switch" />
             <span className="adm-who">{current.name}</span>
             <form action={signOut}>
               <button className="adm-signout" type="submit">

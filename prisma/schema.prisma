@@ -124,8 +124,8 @@ model AdminNotification {
   @@unique([meetingRequestId, type])
 }
 
-// Platform staff. Keyed by email like Advisor/Founder; an email may belong to
-// only one of the three tables (enforced in app/admin/actions.ts).
+// Platform staff. Keyed by email like Advisor/Founder; the same
+// email may also be an Advisor and/or a Founder (one row per role).
 model Admin {
   id          String     @id @default(cuid())
   name        String

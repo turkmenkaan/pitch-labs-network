@@ -42,20 +42,14 @@ test("a removed admin loses access", async ({ admin, stranger }) => {
   expect(await db().admin.count({ where: { email: stranger.email } })).toBe(0);
 });
 
-test("an admin can't be given an email that already belongs to a member", async ({
-  admin,
-  founder,
-  advisor,
-}) => {
+test("an email can't be an admin twice", async ({ admin }) => {
   await admin.page.goto("/admin/admins");
   const form = addForm(admin.page);
-  for (const taken of [founder.email, advisor.email, admin.email]) {
+  for (const taken of [admin.email, admin.email.toUpperCase()]) {
     await form.getByLabel("Name").fill("E2E Clash");
     await form.getByLabel("Slack email").fill(taken);
     await form.getByRole("button", { name: "Add admin" }).click();
-    await expect(form.getByRole("status")).toContainText(
-      "That email already belongs to someone on the platform."
-    );
+    await expect(form.getByRole("status")).toContainText("That email is already an admin.");
   }
   expect(await db().admin.count({ where: { name: "E2E Clash" } })).toBe(0);
 });

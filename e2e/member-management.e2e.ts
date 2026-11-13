@@ -63,7 +63,7 @@ test.describe("adding members", () => {
     await expect(founder.page.getByText("E2E Added Advisor")).toBeVisible();
   });
 
-  test("bad details are refused", async ({ admin, founder, advisor }, testInfo) => {
+  test("bad details are refused", async ({ admin, founder }, testInfo) => {
     // The form clears itself after every submit, so each attempt starts from a
     // fresh page.
     async function attempt(name: string, email: string) {
@@ -83,10 +83,10 @@ test.describe("adding members", () => {
       "Enter a valid email."
     );
 
-    // Taken by a founder, an advisor, and (ignoring case) the founder again.
-    for (const taken of [founder.email, advisor.email, founder.email.toUpperCase()]) {
+    // Already a founder, also when typed in capitals.
+    for (const taken of [founder.email, founder.email.toUpperCase()]) {
       await expect(await attempt("E2E Bad Email", taken)).toContainText(
-        "That email already belongs to someone on the platform."
+        "That email is already a founder."
       );
     }
 
@@ -112,17 +112,24 @@ test.describe("editing members", () => {
     ).toContainText(`name "${founder.row.name}" → "E2E Renamed Founder"`);
   });
 
-  test("an edit can't take another member's email, but can keep its own", async ({
+  test("an edit can't take another founder's email, but can keep its own", async ({
     admin,
     founder,
-    advisor,
-  }) => {
+  }, testInfo) => {
+    const other = await db().founder.create({
+      data: {
+        name: "E2E Other Founder",
+        email: addedEmail(testInfo.workerIndex),
+        company: "E2E Co",
+      },
+    });
     const row = await memberRow(admin.page, "founder", founder.email);
     const form = await openEdit(row);
 
-    await form.getByLabel("Slack email").fill(advisor.email);
+    await form.getByLabel("Slack email").fill(other.email);
     await form.getByRole("button", { name: "Save" }).click();
     await expect(status(form)).toContainText("That email already belongs to someone else.");
+    await db().founder.delete({ where: { id: other.id } });
     expect((await db().founder.findUniqueOrThrow({ where: { id: founder.row.id } })).email).toBe(
       founder.email
     );

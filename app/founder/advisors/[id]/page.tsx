@@ -23,7 +23,7 @@ export default async function AdvisorDetail({
   const month = currentMonth();
 
   const advisor = await prisma.advisor.findUnique({ where: { id } });
-  if (!advisor || advisor.deactivatedAt) notFound();
+  if (!advisor || advisor.deactivatedAt || advisor.email === current.email) notFound();
 
   const [availability, activeRequests, usage] = await Promise.all([
     getAvailability(advisor.id, month),

@@ -18,7 +18,8 @@ export default async function FounderHome() {
 
   const advisors = await prisma.advisor.findMany({
     // Listed once an admin hasn't deactivated them and their intro is filled in.
-    where: { deactivatedAt: null, bio: { not: "" } },
+    // Never the founder's own advisor profile if they hold both roles.
+    where: { deactivatedAt: null, bio: { not: "" }, email: { not: current.email } },
     orderBy: { name: "asc" },
   });
   const withAvailability = await Promise.all(

@@ -1,7 +1,7 @@
 // Creates the first admin (or any admin) without hand-editing SQL.
 //   npm run make-admin -- someone@company.com "Full Name"
 import { PrismaClient } from "@prisma/client";
-import { emailInUse, isValidEmail, normalizeMemberEmail } from "../lib/admin";
+import { emailInRole,isValidEmail, normalizeMemberEmail } from "../lib/admin";
 
 const prisma = new PrismaClient();
 
@@ -14,8 +14,8 @@ async function main() {
     console.error('Usage: npm run make-admin -- <email> "<Full Name>"');
     process.exit(1);
   }
-  if (await emailInUse(email)) {
-    console.error(`${email} already belongs to an admin, advisor or founder.`);
+  if (await emailInRole("admin", email)) {
+    console.error(`${email} is already an admin.`);
     process.exit(1);
   }
 

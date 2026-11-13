@@ -127,11 +127,13 @@ export default async function LandingPage() {
   const email = await getSessionEmail();
   if (email) {
     const roles = await getRoles();
-    if (roles.includes("admin")) redirect("/admin");
-    // A preview shows the workspace as it is; real members finish their profile first.
+    // A preview shows the workspace as it is; real members land on the role they
+    // used last, and finish their profile first.
     const landing = (await getPreview()) ? null : await landingPath(email);
-    if (roles.includes("advisor")) redirect(landing ?? "/advisor");
-    redirect(landing ?? "/founder");
+    if (landing) redirect(landing);
+    if (roles.includes("admin")) redirect("/admin");
+    if (roles.includes("advisor")) redirect("/advisor");
+    redirect("/founder");
   }
 
   return (

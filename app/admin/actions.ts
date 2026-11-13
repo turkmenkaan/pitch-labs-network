@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentAdmin, VIEW_AS_COOKIE } from "@/lib/session";
 import {
-  emailInUse,
+  emailInRole,
   isValidEmail,
   normalizeMemberEmail,
+  rolesHeldBy,
   writeAudit,
 } from "@/lib/admin";
 import type { ActionState } from "../actions";
@@ -39,8 +40,8 @@ export async function createMember(
   if (!isMemberType(type)) return { ok: false, error: "Pick advisor or founder." };
   if (!name) return { ok: false, error: "Name is required." };
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email." };
-  if (await emailInUse(email)) {
-    return { ok: false, error: "That email already belongs to someone on the platform." };
+  if (await emailInRole(type, email)) {
+    return { ok: false, error: `That email is already ${type === "advisor" ? "an advisor" : "a founder"}.` };
   }
 
   // The member completes the rest of their dossier on first login. Advisors
@@ -73,15 +74,29 @@ export async function updateMember(
   if (!isMemberType(type) || !id) return { ok: false, error: "Invalid member." };
   if (!name) return { ok: false, error: "Name is required." };
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email." };
-  if (await emailInUse(email, { type, id })) {
-    return { ok: false, error: "That email already belongs to someone else." };
-  }
 
   const before =
     type === "advisor"
       ? await prisma.advisor.findUnique({ where: { id } })
       : await prisma.founder.findUnique({ where: { id } });
   if (!before) return { ok: false, error: "Member not found." };
+
+  // A changed email moves with the person: every role held under the old email
+  // follows, so one person never splits into two. Each role needs the new
+  // email to be free.
+  const emailChanged = before.email !== email;
+  const held = emailChanged ? await rolesHeldBy(before.email) : [type];
+  for (const role of held) {
+    if (await emailInRole(role, email, role === type ? id : undefined)) {
+      return {
+        ok: false,
+        error:
+          role === type
+            ? "That email already belongs to someone else."
+            : `That email already has a ${role} role, so ${before.name}'s ${role} role can't move to it.`,
+      };
+    }
+  }
 
   // Founders only: optional overrides of the booking guardrails (blank = default).
   let limits: { monthlyHoursLimit: number | null; advisorCallLimit: number | null } | null =
@@ -101,11 +116,21 @@ export async function updateMember(
     limits = { monthlyHoursLimit: hours, advisorCallLimit: calls };
   }
 
-  if (type === "advisor") {
-    await prisma.advisor.update({ where: { id }, data: { name, email } });
-  } else {
-    await prisma.founder.update({ where: { id }, data: { name, email, ...limits } });
-  }
+  const moved = held.filter((r) => r !== type);
+  await prisma.$transaction([
+    type === "advisor"
+      ? prisma.advisor.update({ where: { id }, data: { name, email } })
+      : prisma.founder.update({ where: { id }, data: { name, email, ...limits } }),
+    ...(moved.includes("advisor")
+      ? [prisma.advisor.update({ where: { email: before.email }, data: { email } })]
+      : []),
+    ...(moved.includes("founder")
+      ? [prisma.founder.update({ where: { email: before.email }, data: { email } })]
+      : []),
+    ...(moved.includes("admin")
+      ? [prisma.admin.update({ where: { email: before.email }, data: { email } })]
+      : []),
+  ]);
 
   const show = (n: number | null | undefined) => (n == null ? "default" : String(n));
   const prev = before as { monthlyHoursLimit?: number | null; advisorCallLimit?: number | null };
@@ -166,8 +191,8 @@ export async function addAdmin(
   const email = normalizeMemberEmail(String(formData.get("email") ?? ""));
   if (!name) return { ok: false, error: "Name is required." };
   if (!isValidEmail(email)) return { ok: false, error: "Enter a valid email." };
-  if (await emailInUse(email)) {
-    return { ok: false, error: "That email already belongs to someone on the platform." };
+  if (await emailInRole("admin", email)) {
+    return { ok: false, error: "That email is already an admin." };
   }
 
   const created = await prisma.admin.create({

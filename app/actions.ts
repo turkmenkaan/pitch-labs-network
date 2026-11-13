@@ -9,8 +9,13 @@ import { checkNewRequest, getFounderUsage } from "@/lib/guardrails";
 import {
   getActingAdvisor,
   getActingFounder,
+  getSessionEmail,
+  LAST_ROLE_COOKIE,
   previewBlock,
+  ROLE_HOME,
+  rolesForEmail,
   VIEW_AS_COOKIE,
+  type Role,
 } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkReason } from "@/lib/reason";
@@ -19,12 +24,37 @@ import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
+const isRole = (v: string): v is Role =>
+  v === "admin" || v === "advisor" || v === "founder";
+
 // --- Sign out ------------------------------------------------------------
 export async function signOut() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   (await cookies()).delete(VIEW_AS_COOKIE);
   redirect("/login");
+}
+
+// --- Switch workspace (people who hold several roles) ----------------------
+// Remembers the choice so the next sign-in lands there. Only roles the signed-in
+// email really holds are accepted; the cookie is a preference, never a grant.
+export async function switchRole(formData: FormData) {
+  const role = String(formData.get("role") ?? "");
+  const email = await getSessionEmail();
+  if (!email) redirect("/login");
+  const held = await rolesForEmail(email);
+  if (!isRole(role) || !held.includes(role)) redirect("/");
+
+  (await cookies()).set(LAST_ROLE_COOKIE, role, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  // Leave any preview behind: it belongs to the admin workspace.
+  (await cookies()).delete(VIEW_AS_COOKIE);
+  redirect(ROLE_HOME[role]);
 }
 
 // --- Advisor updates their own dossier -----------------------------------
@@ -396,6 +426,10 @@ export async function sendMeetingRequest(
   const advisor = await prisma.advisor.findUnique({ where: { id: advisorId } });
   if (!advisor || advisor.deactivatedAt) {
     return { ok: false, error: "Advisor not found." };
+  }
+  // Someone who is both an advisor and a founder can't book themselves.
+  if (advisor.email === current.email) {
+    return { ok: false, error: "You can't request a meeting with yourself." };
   }
 
   const month = currentMonth();

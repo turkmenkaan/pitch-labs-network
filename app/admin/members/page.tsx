@@ -70,6 +70,24 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
           advisorCallLimit: f.advisorCallLimit,
         }));
 
+  // Roles the same email also holds, shown beside the name.
+  const emails = rows.map((r) => r.email);
+  const [admins, advisors, founders] = await Promise.all([
+    prisma.admin.findMany({ where: { email: { in: emails } }, select: { email: true } }),
+    type === "advisor"
+      ? []
+      : prisma.advisor.findMany({ where: { email: { in: emails } }, select: { email: true } }),
+    type === "founder"
+      ? []
+      : prisma.founder.findMany({ where: { email: { in: emails } }, select: { email: true } }),
+  ]);
+  const alsoBy = new Map<string, string[]>();
+  const note = (list: { email: string }[], role: string) =>
+    list.forEach((r) => alsoBy.set(r.email, [...(alsoBy.get(r.email) ?? []), role]));
+  note(admins, "admin");
+  note(advisors, "advisor");
+  note(founders, "founder");
+
   const href = (patch: Record<string, string>) => {
     const p = new URLSearchParams({ type, ...(q && { q }), show, ...patch });
     return `/admin/members?${p}`;
@@ -82,7 +100,8 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
         <h1>Members</h1>
         <p className="adm-sub">
           Add people by their Slack email — that&apos;s the allowlist. Members with
-          meeting history can&apos;t be deleted; deactivate them to block login and
+          meeting history can&apos;t be deleted; one email can hold several roles,
+          so add the same address under each; deactivate them to block login and
           hide them from the directory.
         </p>
       </div>
@@ -124,6 +143,9 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
               <td>
                 <b>{m.name}</b>
                 <span className="adm-sub-line">{m.email}</span>
+                {alsoBy.has(m.email) && (
+                  <span className="adm-sub-line">Also {alsoBy.get(m.email)!.join(", ")}</span>
+                )}
               </td>
               <td>{m.detail}</td>
               <td>
