@@ -14,7 +14,8 @@
     "db:reset": "tsx scripts/guard-not-production.ts && prisma migrate reset --force",
     "db:migrate:staging": "tsx scripts/migrate.ts staging",
     "db:migrate:prod": "tsx scripts/migrate.ts prod",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -29,6 +30,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

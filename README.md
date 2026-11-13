@@ -112,6 +112,40 @@ Useful scripts:
 - `npm run db:migrate:staging` - apply migrations to the `staging` schema of the non-production project
 - `npm run db:migrate:prod` - apply migrations to production; reads `.env.prod-migrate` (gitignored) and asks for confirmation
 
+## End-to-end tests
+
+Playwright tests live in `e2e/`. They sign in without Slack, using the
+**non-production** Supabase project: each test creates its own advisor, founder
+or admin (in the database and in Supabase Auth), signs them in with the secret
+API key, and deletes everything afterwards. Tests never depend on seed data or
+on each other.
+
+```bash
+cp .env.e2e.example .env.e2e    # add the non-production secret key
+npm run test:e2e                # starts `npm run dev` if it isn't running
+```
+
+- Tests (`e2e/`): the meeting lifecycle (`meeting-lifecycle`), role access
+  (`access-control`), founder booking limits and admin overrides
+  (`booking-limits`, including a simultaneous-request race), advisor
+  availability (`availability`), conflict resolution (`conflicts`), member and
+  admin management (`member-management`, `admin-management`), the admin
+  "view as" preview (`view-as`), and the audit log and activity pages
+  (`audit-and-activity`). Every new feature needs a test here (see `CLAUDE.md`).
+- Not covered: the "can't remove the last admin" guard, because reaching it
+  means deleting the real admins in a shared database.
+- Each worker signs in once per role and reuses that session: Supabase limits
+  how many sign-ins you can do in a few minutes, so a full run uses roughly
+  25-30 of them. Wait about 5 minutes between full runs.
+- The app refuses to schedule a meeting in the past, so the lifecycle test moves
+  the meeting time into the past directly in the database (`e2e/helpers/db.ts`).
+- Needs the Email provider enabled on the non-production Supabase project (the default).
+- Refuses to run if the Supabase URL or database is the production project.
+- Against staging: set `E2E_BASE_URL`, `E2E_VERCEL_BYPASS_SECRET` and
+  `E2E_DATABASE_URL` (the pooled URL with `schema=staging`) in `.env.e2e`.
+- In CI, provide the same variables as secrets instead of `.env.e2e`
+  (`CI=true` switches to retries and the GitHub reporter).
+
 ## Project map
 
 | Path                   | Purpose                                                          |
