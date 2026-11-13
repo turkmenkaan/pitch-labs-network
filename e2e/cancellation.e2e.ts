@@ -8,10 +8,11 @@ import { DEFAULT_MONTHLY_HOURS } from "../lib/guardrails";
 const inAnHour = () => new Date(Date.now() + 60 * 60 * 1000);
 const tomorrow = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-// Opens the card's "Cancel meeting" confirmation and confirms it.
-async function cancelFrom(page: Page, topic: string) {
+// Opens the card's "Cancel meeting" confirmation, gives a reason and confirms.
+async function cancelFrom(page: Page, topic: string, reason = "Something came up.") {
   const meeting = card(page, topic);
   await meeting.getByText("Cancel meeting", { exact: true }).click();
+  await meeting.getByLabel(/^Reason/).fill(reason);
   await meeting.getByRole("button", { name: "Yes, cancel meeting" }).click();
 }
 
@@ -37,7 +38,7 @@ test("an advisor cancels an accepted meeting and the hours go back to both sides
   await founder.page.goto("/founder/meetings");
   await expect(usageMeter(founder.page)).toContainText(`2 of ${DEFAULT_MONTHLY_HOURS} hours`);
 
-  await cancelFrom(advisor.page, topic);
+  await cancelFrom(advisor.page, topic, "I'm travelling that week.");
 
   // Advisor: the meeting moves to Cancelled and the 2 hours are free again.
   await expect(advisor.page.locator("article.meeting", { hasText: topic })).toHaveCount(0);
@@ -50,10 +51,15 @@ test("an advisor cancels an accepted meeting and the hours go back to both sides
   await expect(card(founder.page, topic)).toContainText(
     `${advisor.row.name} cancelled this meeting.`
   );
+  await expect(card(founder.page, topic)).toContainText("Reason: “I'm travelling that week.”");
   await expect(usageMeter(founder.page)).toContainText(`0 of ${DEFAULT_MONTHLY_HOURS} hours`);
 
   const stored = await db().meetingRequest.findUniqueOrThrow({ where: { id: request.id } });
-  expect(stored).toMatchObject({ status: "CANCELLED", cancelledBy: "advisor" });
+  expect(stored).toMatchObject({
+    status: "CANCELLED",
+    cancelledBy: "advisor",
+    cancelReason: "I'm travelling that week.",
+  });
   expect(stored.cancelledAt).not.toBeNull();
 
   // Admins can find it under Activity.
@@ -80,7 +86,7 @@ test("a founder cancels a scheduled meeting and can book that time again", async
   await expect(founder.page.getByRole("button", { name: "Send meeting request" })).toHaveCount(0);
 
   await founder.page.goto("/founder/meetings");
-  await cancelFrom(founder.page, topic);
+  await cancelFrom(founder.page, topic, "Our launch moved.");
   await expect(card(founder.page, topic).locator(".pill")).toHaveText("Cancelled");
   await expect(card(founder.page, topic)).toContainText("You cancelled this meeting.");
   await expect(usageMeter(founder.page)).toContainText(`0 of ${DEFAULT_MONTHLY_HOURS} hours`);
@@ -94,6 +100,7 @@ test("a founder cancels a scheduled meeting and can book that time again", async
   // The advisor sees who cancelled, and the hours are theirs again.
   await advisor.page.goto("/advisor");
   await expect(card(advisor.page, topic)).toContainText(`${founder.row.name} cancelled this meeting.`);
+  await expect(card(advisor.page, topic)).toContainText("Reason: “Our launch moved.”");
   await expect(hoursRemaining(advisor.page)).toHaveText("10");
 });
 
@@ -227,9 +234,44 @@ test("an admin previewing a member can't cancel for them", async ({ admin, advis
 
   const meeting = card(admin.page, topic);
   await meeting.getByText("Cancel meeting", { exact: true }).click();
+  await meeting.getByLabel(/^Reason/).fill("Previewing only.");
   await meeting.getByRole("button", { name: "Yes, cancel meeting" }).dispatchEvent("click");
   await expect(meeting).toContainText("You're previewing as an admin, so changes are disabled.");
   expect(
     (await db().meetingRequest.findUniqueOrThrow({ where: { id: request.id } })).status
   ).toBe("ACCEPTED");
 });
+
+test("cancelling needs a reason", async ({ advisor, founder }) => {
+  const topic = uniqueTopic("No reason");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  for (const [page, path] of [
+    [advisor.page, "/advisor"],
+    [founder.page, "/founder/meetings"],
+  ] as const) {
+    await page.goto(path);
+    const meeting = card(page, topic);
+    await meeting.getByText("Cancel meeting", { exact: true }).click();
+    // The browser asks for a reason...
+    await expect(meeting.getByLabel(/^Reason/)).toHaveAttribute("required", "");
+    // ...and the server insists too, for a blank or whitespace-only one.
+    await meeting
+      .locator("form", { hasText: "Cancel this meeting" })
+      .evaluate((f) => ((f as HTMLFormElement).noValidate = true));
+    for (const blank of ["", "   "]) {
+      await meeting.getByLabel(/^Reason/).fill(blank);
+      await meeting.getByRole("button", { name: "Yes, cancel meeting" }).click();
+      await expect(meeting).toContainText("Add a reason for cancelling.");
+    }
+  }
+  expect(
+    (await db().meetingRequest.findUniqueOrThrow({ where: { id: request.id } })).status
+  ).toBe("ACCEPTED");
+});
+

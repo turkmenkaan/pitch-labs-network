@@ -13,8 +13,9 @@ import {
   VIEW_AS_COOKIE,
 } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { currentMonth } from "@/lib/types";
+import { checkReason } from "@/lib/reason";
 import { parseEasternInput } from "@/lib/time";
+import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
@@ -112,7 +113,6 @@ export async function setAvailability(
   return { ok: true, message: "Availability updated." };
 }
 
-// --- Accept / reject a meeting request -----------------------------------
 // What to tell an advisor who acts on a request that is no longer pending.
 function alreadyDecided(status: string | undefined): string {
   return status === "WITHDRAWN"
@@ -120,6 +120,7 @@ function alreadyDecided(status: string | undefined): string {
     : "This request was already decided.";
 }
 
+// --- Accept / reject a meeting request -----------------------------------
 export async function decideRequest(
   _prev: ActionState,
   formData: FormData
@@ -133,6 +134,13 @@ export async function decideRequest(
 
   if (decision !== "ACCEPTED" && decision !== "REJECTED") {
     return { ok: false, error: "Invalid decision." };
+  }
+  // Declining needs a reason; the founder sees it.
+  let note = decisionNote;
+  if (decision === "REJECTED") {
+    const checked = checkReason(decisionNote, "declining");
+    if ("error" in checked) return { ok: false, error: checked.error };
+    note = checked.reason;
   }
 
   const request = await prisma.meetingRequest.findUnique({
@@ -175,7 +183,7 @@ export async function decideRequest(
     where: { id: requestId, status: "PENDING" },
     data: {
       status: decision,
-      decisionNote: decisionNote || null,
+      decisionNote: note || null,
       decidedAt: new Date(),
     },
   });
@@ -556,8 +564,12 @@ export async function withdrawRequest(
 async function cancelMeeting(
   requestId: string,
   side: "advisor" | "founder",
-  memberId: string
+  memberId: string,
+  rawReason: string
 ): Promise<ActionState> {
+  const checked = checkReason(rawReason, "cancelling");
+  if ("error" in checked) return { ok: false, error: checked.error };
+
   // Atomic: only this member's own accepted meeting, with no outcome recorded
   // and no time that has already passed.
   const cancelled = await prisma.meetingRequest.updateMany({
@@ -570,7 +582,12 @@ async function cancelMeeting(
       adminMet: null,
       OR: [{ scheduledAt: null }, { scheduledAt: { gt: new Date() } }],
     },
-    data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: side },
+    data: {
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+      cancelledBy: side,
+      cancelReason: checked.reason,
+    },
   });
 
   if (cancelled.count === 0) {
@@ -601,7 +618,12 @@ export async function cancelMeetingAsAdvisor(
   const blocked = await previewBlock();
   if (blocked) return blocked;
   const { current } = await getActingAdvisor();
-  return cancelMeeting(String(formData.get("requestId") ?? ""), "advisor", current.id);
+  return cancelMeeting(
+    String(formData.get("requestId") ?? ""),
+    "advisor",
+    current.id,
+    String(formData.get("reason") ?? "")
+  );
 }
 
 export async function cancelMeetingAsFounder(
@@ -611,5 +633,10 @@ export async function cancelMeetingAsFounder(
   const blocked = await previewBlock();
   if (blocked) return blocked;
   const { current } = await getActingFounder();
-  return cancelMeeting(String(formData.get("requestId") ?? ""), "founder", current.id);
+  return cancelMeeting(
+    String(formData.get("requestId") ?? ""),
+    "founder",
+    current.id,
+    String(formData.get("reason") ?? "")
+  );
 }

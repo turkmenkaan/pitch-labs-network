@@ -79,7 +79,7 @@ model MeetingRequest {
   // Which month this meeting counts against ("YYYY-MM").
   month          String
   status         String        @default("PENDING")
-  decisionNote   String? // optional note advisor leaves on reject/accept
+  decisionNote   String? // advisor's note: required on reject, optional on accept
   createdAt      DateTime      @default(now())
   decidedAt      DateTime?
 
@@ -99,6 +99,7 @@ model MeetingRequest {
   // (status becomes CANCELLED); cancelledBy is "advisor" or "founder".
   cancelledAt    DateTime?
   cancelledBy    String?
+  cancelReason   String? // required when cancelling
 
   notifications  AdminNotification[]
 }

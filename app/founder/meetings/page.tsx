@@ -57,6 +57,7 @@ export default async function FounderMeetings() {
           : null,
       canCancel: canCancelMeeting(r),
       cancelledBy: r.cancelledBy,
+      cancelReason: r.cancelReason,
       sortKey: r.createdAt.getTime(),
     };
   });

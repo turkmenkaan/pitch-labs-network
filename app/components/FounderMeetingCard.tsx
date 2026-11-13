@@ -24,6 +24,7 @@ export type FounderMeetingView = {
   adminRuling: { met: boolean; note: string | null } | null;
   canCancel: boolean;
   cancelledBy: string | null; // "advisor" | "founder"
+  cancelReason: string | null;
 };
 
 const STAGE_PILL: Record<FounderStage, string> = {
@@ -128,6 +129,7 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
             ? `${m.advisorName} cancelled this meeting.`
             : "You cancelled this meeting."}{" "}
           The {m.estimatedHours}h are back in your monthly quota.
+          {m.cancelReason && <> Reason: “{m.cancelReason}”</>}
         </p>
       )}
 

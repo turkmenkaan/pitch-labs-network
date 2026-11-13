@@ -1,8 +1,8 @@
 import type { Page } from "@playwright/test";
 import { DEFAULT_MONTHLY_HOURS } from "../lib/guardrails";
 import { db, expect, test } from "./fixtures";
-import { card, datetimeLocal, sendRequest, usageMeter } from "./helpers/flows";
 import { createRequest, uniqueTopic } from "./helpers/data";
+import { card, datetimeLocal, sendRequest, usageMeter } from "./helpers/flows";
 
 test("a request goes from sent to accepted, scheduled and confirmed by both sides", async ({
   founder,
@@ -79,7 +79,7 @@ test("a declined request gives the hours back", async ({ founder, advisor }) => 
 
   await advisor.page.goto("/advisor");
   const request = card(advisor.page, topic);
-  await request.getByPlaceholder(/optional note/i).fill("Not a fit this month.");
+  await request.getByLabel("Note to the founder").fill("Not a fit this month.");
   await request.getByRole("button", { name: "Reject" }).click();
   await expect(request.locator(".pill")).toHaveText("Rejected");
 
@@ -90,6 +90,34 @@ test("a declined request gives the hours back", async ({ founder, advisor }) => 
   await founder.page.goto("/founder/meetings");
   await expect(card(founder.page, topic).locator(".pill")).toHaveText("Declined");
   await expect(card(founder.page, topic)).toContainText("Not a fit this month.");
+});
+
+test("declining needs a reason, and nothing changes without one", async ({
+  founder,
+  advisor,
+}) => {
+  const topic = uniqueTopic("Decline no reason");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    hours: 2,
+  });
+
+  await advisor.page.goto("/advisor");
+  const pending = card(advisor.page, topic);
+  for (const blank of ["", "   "]) {
+    await pending.getByLabel("Note to the founder").fill(blank);
+    await pending.getByRole("button", { name: "Reject" }).click();
+    await expect(pending).toContainText("Add a reason for declining.");
+  }
+  expect(
+    (await db().meetingRequest.findUniqueOrThrow({ where: { id: request.id } })).status
+  ).toBe("PENDING");
+
+  // A note is still optional when accepting.
+  await pending.getByRole("button", { name: "Accept" }).click();
+  await expect(pending.locator(".pill")).not.toHaveText("Pending");
 });
 
 test("a withdrawn request gives the hours back", async ({ founder, advisor }) => {

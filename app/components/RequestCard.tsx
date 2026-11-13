@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
+import { MAX_REASON_LENGTH } from "@/lib/reason";
 import { decideRequest, type ActionState } from "../actions";
 
 export type PendingRequest = {
@@ -54,7 +55,9 @@ export function RequestCard({ request }: { request: PendingRequest }) {
         <input
           className="note-input"
           name="decisionNote"
-          placeholder="Optional note to the founder…"
+          aria-label="Note to the founder"
+          placeholder="Note to the founder (required to reject)"
+          maxLength={MAX_REASON_LENGTH}
         />
         <button
           className="btn btn-reject"

@@ -132,6 +132,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: SP 
                 <td>
                   <span className={`pill pill-${r.status.toLowerCase()}`}>{r.status.toLowerCase()}</span>
                   {r.decisionNote && <span className="adm-sub-line">{r.decisionNote}</span>}
+                  {r.cancelReason && <span className="adm-sub-line">Cancelled by {r.cancelledBy}: {r.cancelReason}</span>}
                 </td>
                 <td>
                   {stage ? STAGE_LABELS[stage] : "—"}

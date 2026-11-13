@@ -257,6 +257,7 @@ export default async function AdvisorDashboard() {
                       ? `${r.founder.name} cancelled this meeting.`
                       : "You cancelled this meeting."}{" "}
                     The hours are back in your availability.
+                    {r.cancelReason && <> Reason: “{r.cancelReason}”</>}
                   </p>
                 </article>
               ))}
