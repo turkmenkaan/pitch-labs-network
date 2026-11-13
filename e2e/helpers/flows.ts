@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { toEasternInput } from "../../lib/time";
 
 // Founder fills in and sends the "Request a meeting" form on an advisor's page.
 export async function sendRequest(
@@ -26,8 +27,8 @@ export function card(page: Page, topic: string): Locator {
   return page.locator("article", { hasText: topic });
 }
 
-// "YYYY-MM-DDTHH:mm" in the browser's local time, for datetime-local inputs.
+// "YYYY-MM-DDTHH:mm" as the Eastern wall clock reads at `date`, for the
+// datetime-local input (meeting times are entered in Eastern Time).
 export function datetimeLocal(date: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+  return toEasternInput(date);
 }

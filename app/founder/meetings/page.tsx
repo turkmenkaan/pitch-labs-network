@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getRoles, getCurrentFounder } from "@/lib/session";
-import { fmtDateTime } from "@/lib/format";
+import { fmtMeetingTime } from "@/lib/format";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { getFounderUsage } from "@/lib/guardrails";
 import { canCancelMeeting, getFounderStage, type FounderStage } from "@/lib/meeting";
@@ -48,7 +48,7 @@ export default async function FounderMeetings() {
       estimatedHours: r.estimatedHours,
       month: formatMonth(r.month),
       stage: getFounderStage(r),
-      scheduledAtLabel: r.scheduledAt ? fmtDateTime(r.scheduledAt) : null,
+      scheduledAtLabel: r.scheduledAt ? fmtMeetingTime(r.scheduledAt) : null,
       decisionNote: r.decisionNote,
       adminRuling:
         r.adminMet != null

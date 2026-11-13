@@ -40,6 +40,9 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: true,
         timeout: 120_000,
+        // Like Vercel, the server runs in UTC. Meeting times must be right
+        // whatever the zone of the server or the browser.
+        env: { TZ: "UTC" },
       }
     : undefined,
 });

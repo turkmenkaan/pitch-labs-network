@@ -78,6 +78,7 @@ function ScheduleForm({ m }: { m: MeetingView }) {
           {pending ? "Saving…" : m.scheduledAtInput ? "Update time" : "Set time"}
         </button>
       </div>
+      <p className="stage-prompt muted">All times are in Eastern Time (ET).</p>
       {state?.error && <p className="stage-error">{state.error}</p>}
     </form>
   );

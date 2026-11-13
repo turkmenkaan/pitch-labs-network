@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { currentMonth, formatMonth } from "@/lib/types";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtMeetingTime } from "@/lib/format";
 import { ViewAsButton } from "../_components/ViewAsButton";
 import { getMeetingStage, STAGE_LABELS } from "@/lib/meeting";
 
@@ -125,7 +125,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: SP 
             return (
               <tr key={r.id}>
                 <td><b>{r.topic}</b>
-                  {r.scheduledAt && <span className="adm-sub-line">{fmtDateTime(r.scheduledAt)}</span>}</td>
+                  {r.scheduledAt && <span className="adm-sub-line">{fmtMeetingTime(r.scheduledAt)}</span>}</td>
                 <td><ViewAsButton type="advisor" id={r.advisorId} variant="link">{r.advisor.name}</ViewAsButton></td>
                 <td><ViewAsButton type="founder" id={r.founderId} variant="link">{r.founder.name}</ViewAsButton><span className="adm-sub-line">{r.founder.company}</span></td>
                 <td className="num">{r.estimatedHours}</td>

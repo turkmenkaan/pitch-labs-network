@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtMeetingTime } from "@/lib/format";
 import { formatMonth } from "@/lib/types";
 import { ResolveConflictForm } from "../_components/forms";
 
@@ -40,7 +40,7 @@ export default async function ConflictsPage() {
                 <h3>{m.topic}</h3>
                 <p className="mono">
                   {formatMonth(m.month)} · {m.estimatedHours}h
-                  {m.scheduledAt && <> · scheduled {fmtDateTime(m.scheduledAt)}</>}
+                  {m.scheduledAt && <> · scheduled {fmtMeetingTime(m.scheduledAt)}</>}
                 </p>
               </header>
               <div className="adm-versus">

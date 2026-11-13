@@ -1,6 +1,7 @@
 import { DEFAULT_MONTHLY_HOURS } from "../lib/guardrails";
 import { db, expect, test } from "./fixtures";
 import { card, datetimeLocal, sendRequest, usageMeter } from "./helpers/flows";
+import { createRequest, uniqueTopic } from "./helpers/data";
 
 test("a request goes from sent to accepted, scheduled and confirmed by both sides", async ({
   founder,
@@ -109,3 +110,54 @@ test("a withdrawn request gives the hours back", async ({ founder, advisor }) =>
     `0 of ${DEFAULT_MONTHLY_HOURS} hours`
   );
 });
+
+test.describe("meeting times are in Eastern Time", () => {
+  // The test server runs in UTC, as Vercel does, so a time typed as Eastern
+  // wall-clock only comes out right if the server reads it as Eastern.
+  async function acceptedMeeting(advisorId: string, founderId: string) {
+    const topic = uniqueTopic("Eastern");
+    await createRequest({ advisorId, founderId, topic, status: "ACCEPTED" });
+    return topic;
+  }
+
+  test("a time later today can be scheduled, and is kept as the right moment", async ({
+    advisor,
+    founder,
+  }) => {
+    const topic = await acceptedMeeting(advisor.row.id, founder.row.id);
+    const inAnHour = new Date(Date.now() + 60 * 60 * 1000);
+
+    await advisor.page.goto("/advisor");
+    const meeting = advisor.page.locator("article.meeting", { hasText: topic });
+    await expect(meeting).toContainText("All times are in Eastern Time (ET).");
+    await meeting.locator('input[name="scheduledAt"]').fill(datetimeLocal(inAnHour));
+    await meeting.getByRole("button", { name: "Set time" }).click();
+
+    // Accepted as a future time, not rejected or treated as already started.
+    await expect(meeting.locator(".pill")).toHaveText("Upcoming");
+    await expect(meeting).toContainText(/ ET\b/);
+    const stored = await db().meetingRequest.findFirstOrThrow({ where: { topic } });
+    expect(Math.abs(stored.scheduledAt!.getTime() - inAnHour.getTime())).toBeLessThan(2 * 60 * 1000);
+
+    // The founder sees the same time, labelled Eastern.
+    await founder.page.goto("/founder/meetings");
+    await expect(card(founder.page, topic).locator(".pill")).toHaveText("Upcoming");
+    await expect(card(founder.page, topic)).toContainText(/ ET\b/);
+  });
+
+  test("a time that has already passed is refused", async ({ advisor, founder }) => {
+    const topic = await acceptedMeeting(advisor.row.id, founder.row.id);
+    const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    await advisor.page.goto("/advisor");
+    const meeting = advisor.page.locator("article.meeting", { hasText: topic });
+    await meeting.locator('input[name="scheduledAt"]').fill(datetimeLocal(anHourAgo));
+    await meeting.getByRole("button", { name: "Set time" }).click();
+
+    await expect(meeting).toContainText("Pick a time in the future.");
+    expect(
+      (await db().meetingRequest.findFirstOrThrow({ where: { topic } })).scheduledAt
+    ).toBeNull();
+  });
+});
+

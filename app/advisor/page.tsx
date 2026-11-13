@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getCurrentAdvisor } from "@/lib/session";
 import { getAvailability } from "@/lib/availability";
+import { fmtDate, fmtMeetingTime } from "@/lib/format";
+import { toEasternInput } from "@/lib/time";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { redirect } from "next/navigation";
 import { getRoles } from "@/lib/session";
@@ -11,30 +13,6 @@ import { RequestCard, type PendingRequest } from "../components/RequestCard";
 import { MeetingCard, type MeetingView } from "../components/MeetingCard";
 
 export const dynamic = "force-dynamic";
-
-function fmtDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function toLocalInput(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
-
-function fmtDateTime(d: Date): string {
-  return d.toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 // Float the meetings that need the advisor's attention to the top.
 const STAGE_ORDER: Record<MeetingStage, number> = {
@@ -91,8 +69,8 @@ export default async function AdvisorDashboard() {
       founderCompany: r.founder.company,
       estimatedHours: r.estimatedHours,
       stage,
-      scheduledAtInput: r.scheduledAt ? toLocalInput(r.scheduledAt) : null,
-      scheduledAtLabel: r.scheduledAt ? fmtDateTime(r.scheduledAt) : null,
+      scheduledAtInput: r.scheduledAt ? toEasternInput(r.scheduledAt) : null,
+      scheduledAtLabel: r.scheduledAt ? fmtMeetingTime(r.scheduledAt, { weekday: true }) : null,
       advisorRating: r.advisorRating,
       advisorFeedback: r.advisorFeedback,
       hasConflict: r.notifications.some(

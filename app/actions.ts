@@ -14,6 +14,7 @@ import {
 } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/types";
+import { parseEasternInput } from "@/lib/time";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
@@ -198,8 +199,9 @@ export async function scheduleMeeting(
   if (!scheduledAtRaw) {
     return { ok: false, error: "Pick a date and time." };
   }
-  const scheduledAt = new Date(scheduledAtRaw);
-  if (Number.isNaN(scheduledAt.getTime())) {
+  // The picker sends the time as typed, which is Eastern Time.
+  const scheduledAt = parseEasternInput(scheduledAtRaw);
+  if (!scheduledAt) {
     return { ok: false, error: "That date/time isn't valid." };
   }
   if (scheduledAt.getTime() < Date.now()) {
