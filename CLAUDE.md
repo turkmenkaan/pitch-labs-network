@@ -1,5 +1,19 @@
 @AGENTS.md
 
+# Environments and database safety
+
+- `main` is production, `staging` is the non-production staging site, and local dev is the third environment. Staging and local dev share one non-production Supabase project, separated by Postgres schema (`?schema=staging`).
+- Keep production credentials out of `.env`. `lib/env-guard.ts` refuses seed, reset and e2e against production.
+- `npm run seed` wipes members and meetings, so it needs `ALLOW_DESTRUCTIVE_SEED=1`. Don't run it, `npm run db:reset` or any `*:prod` script unless asked.
+- Schema changes: write a migration with `npx prisma migrate dev`. Staging applies migrations on deploy. Production migrations are manual (`npm run db:migrate:prod`), after checking staging and before merging to `main`.
+
+# Conventions that aren't obvious
+
+- Meeting times are Eastern Time (`PLATFORM_TIME_ZONE` in `lib/time.ts`), whatever the server or browser zone. Use `toEasternInput` and `parseEasternInput`, and never the local-zone `Date` APIs for meeting times.
+- Meeting stage and status are derived, not stored (`lib/meeting.ts`, `lib/availability.ts`). Don't add status columns.
+- One email can hold several roles (admin, advisor, founder). Don't assume one role per person.
+- Lint with `npm run lint` (ESLint, flat config in `eslint.config.mjs`; `next lint` no longer exists). There's no CI, so also check types and the build with `npx tsc --noEmit` and `npm run build`.
+
 # Every feature ships with an end-to-end test
 
 When you add a feature or change user-visible behavior, add or update a Playwright test in `e2e/` in the same change. A feature isn't done until its test passes.
