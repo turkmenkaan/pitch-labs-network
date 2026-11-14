@@ -171,6 +171,7 @@ export default async function MembersPage({ searchParams }: { searchParams: SP }
                       email={m.email}
                       monthlyHoursLimit={m.monthlyHoursLimit}
                       advisorCallLimit={m.advisorCallLimit}
+                      alsoRoles={alsoBy.get(m.email)}
                     />
                   </div>
                 </details>

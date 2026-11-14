@@ -168,6 +168,10 @@ test("changing the email on one role moves every role with it", async ({
 
     const row = await memberRow(admin.page, "advisor", advisor.email);
     const form = await openEdit(row);
+    // The form warns that the email is shared before anything is saved.
+    await expect(form.getByTestId("shared-email-note")).toContainText(
+      "also admin and founder"
+    );
     await form.getByLabel("Slack email").fill(newEmail);
     await form.getByRole("button", { name: "Save" }).click();
     // The row leaves this filtered list once its email changes, so check the
