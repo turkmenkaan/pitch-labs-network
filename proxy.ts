@@ -41,6 +41,8 @@ export async function proxy(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname.startsWith("/auth") ||
+    // Cron route: it checks its own bearer secret.
+    pathname.startsWith("/api/notifications/") ||
     pathname === "/no-access";
 
   if (!user && !isPublicRoute) {

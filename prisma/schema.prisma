@@ -150,3 +150,30 @@ model AuditLog {
 
   @@index([createdAt])
 }
+
+// Outbox for Slack notifications. A row is written when something happens,
+// then delivered best-effort right after the response; a sweeper retries
+// whatever is left. dedupeKey makes enqueueing idempotent.
+model Notification {
+  id             String    @id @default(cuid())
+  type           String // e.g. "REQUEST_SENT", "REQUEST_DECIDED"
+  recipientEmail String
+  payload        Json
+  dedupeKey      String    @unique
+  status         String    @default("PENDING") // PENDING | SENT | LOGGED | FAILED | SKIPPED
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([createdAt])
+}
+
+// Cached Slack user id per email (looked up through the bot token).
+model SlackUser {
+  email       String   @id
+  slackUserId String
+  updatedAt   DateTime @updatedAt
+}

@@ -7,6 +7,7 @@ import {
   createMember,
   removeAdmin,
   resolveConflict,
+  retryNotification,
   setMemberActive,
   updateMember,
 } from "../actions";
@@ -214,6 +215,22 @@ export function ResolveConflictForm({ notificationId }: { notificationId: string
       />
       <button className="btn btn-primary" disabled={pending}>
         {pending ? "Saving…" : "Resolve"}
+      </button>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+export function RetryNotificationForm({ id }: { id: string }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(
+    retryNotification,
+    null
+  );
+  return (
+    <form action={action}>
+      <input type="hidden" name="notificationId" value={id} />
+      <button className="btn" disabled={pending}>
+        {pending ? "Retrying…" : "Retry"}
       </button>
       <Feedback state={state} />
     </form>

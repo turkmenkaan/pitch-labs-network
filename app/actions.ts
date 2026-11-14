@@ -19,6 +19,13 @@ import {
 } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkReason } from "@/lib/reason";
+import { notify } from "@/lib/notify";
+import {
+  meetingCancelledMessage,
+  meetingConflictMessage,
+  requestDecidedMessage,
+  requestSentMessage,
+} from "@/lib/notify/messages";
 import { parseEasternInput } from "@/lib/time";
 import { currentMonth } from "@/lib/types";
 
@@ -226,7 +233,24 @@ export async function decideRequest(
     return { ok: false, error: alreadyDecided(now?.status) };
   }
 
-  // TODO(Phase 1): notify the founder of the approval/rejection (email/in-app).
+  const founder = await prisma.founder.findUnique({
+    where: { id: request.founderId },
+  });
+  if (founder && !founder.deactivatedAt) {
+    notify([
+      {
+        type: "REQUEST_DECIDED",
+        recipientEmail: founder.email,
+        dedupeKey: `request-decided:${request.id}`,
+        message: requestDecidedMessage({
+          advisorName: current.name,
+          topic: request.topic,
+          accepted: decision === "ACCEPTED",
+          note: note || null,
+        }),
+      },
+    ]);
+  }
   revalidatePath("/advisor");
   return { ok: true };
 }
@@ -377,6 +401,21 @@ async function flagConflictIfAny(requestId: string) {
   if (!r || r.advisorMet == null || r.founderMet == null) return;
   if (r.advisorMet === r.founderMet) return;
 
+  const admins = await prisma.admin.findMany({ select: { id: true, email: true } });
+  const summary = `Conflict on "${r.topic}": ${r.advisor.name} says the meeting ${
+    r.advisorMet ? "happened" : "did not happen"
+  }, but ${r.founder.name} says it ${
+    r.founderMet ? "happened" : "did not happen"
+  }.`;
+  notify(
+    admins.map((a) => ({
+      type: "MEETING_CONFLICT" as const,
+      recipientEmail: a.email,
+      dedupeKey: `conflict:${requestId}:${a.id}`,
+      message: meetingConflictMessage({ summary }),
+    }))
+  );
+
   await prisma.adminNotification.upsert({
     where: {
       meetingRequestId_type: {
@@ -437,12 +476,13 @@ export async function sendMeetingRequest(
   // Guardrails: a monthly hours cap and a per-advisor call cap (see
   // lib/guardrails.ts). Count and insert run in one transaction under a
   // per-founder lock so two simultaneous requests can't both slip past.
+  let requestId = "";
   const error = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${current.id}))`;
     const usage = await getFounderUsage(tx, current, month);
     const problem = checkNewRequest(usage, advisorId, estimatedHours);
     if (problem) return problem;
-    await tx.meetingRequest.create({
+    const created = await tx.meetingRequest.create({
       data: {
         advisorId,
         founderId: current.id,
@@ -453,11 +493,24 @@ export async function sendMeetingRequest(
         status: "PENDING",
       },
     });
+    requestId = created.id;
     return null;
   });
   if (error) return { ok: false, error };
 
-  // TODO(later): notify the advisor (email/in-app).
+  notify([
+    {
+      type: "REQUEST_SENT",
+      recipientEmail: advisor.email,
+      dedupeKey: `request-sent:${requestId}`,
+      message: requestSentMessage({
+        founderName: current.name,
+        company: current.company,
+        topic,
+        estimatedHours,
+      }),
+    },
+  ]);
   revalidatePath("/founder");
   revalidatePath(`/founder/advisors/${advisorId}`);
   return { ok: true, message: "Request sent." };
@@ -637,6 +690,30 @@ async function cancelMeeting(
       error:
         "This meeting has already happened or its time has passed, so it can't be cancelled. Tell us how it went instead.",
     };
+  }
+
+  const meeting = await prisma.meetingRequest.findUnique({
+    where: { id: requestId },
+    include: { advisor: true, founder: true },
+  });
+  if (meeting) {
+    const other = side === "advisor" ? meeting.founder : meeting.advisor;
+    const actor = side === "advisor" ? meeting.advisor : meeting.founder;
+    if (!other.deactivatedAt) {
+      notify([
+        {
+          type: "MEETING_CANCELLED",
+          recipientEmail: other.email,
+          dedupeKey: `cancelled:${requestId}`,
+          message: meetingCancelledMessage({
+            cancelledByName: actor.name,
+            cancelledBy: side,
+            topic: meeting.topic,
+            reason: checked.reason,
+          }),
+        },
+      ]);
+    }
   }
 
   revalidatePath("/advisor");

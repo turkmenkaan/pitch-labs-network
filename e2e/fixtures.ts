@@ -77,6 +77,7 @@ async function provisionAdvisor(
     await db().meetingRequest.deleteMany({ where: { advisorId: row.id } });
     await db().monthlyAvailability.deleteMany({ where: { advisorId: row.id } });
     await db().advisor.deleteMany({ where: { id: row.id } });
+    await db().notification.deleteMany({ where: { recipientEmail: identity.email } });
   });
 }
 
@@ -146,6 +147,7 @@ export const test = base.extend<
       });
       await db().meetingRequest.deleteMany({ where: { founderId: row.id } });
       await db().founder.deleteMany({ where: { id: row.id } });
+      await db().notification.deleteMany({ where: { recipientEmail: identity.email } });
     });
   },
 
@@ -165,6 +167,7 @@ export const test = base.extend<
     await cleanup("admin data", async () => {
       await db().auditLog.deleteMany({ where: { adminId: row.id } });
       await db().admin.deleteMany({ where: { id: row.id } });
+      await db().notification.deleteMany({ where: { recipientEmail: identity.email } });
     });
   },
 
@@ -176,5 +179,8 @@ export const test = base.extend<
     await use({ page, email: identity.email });
 
     await cleanup("stranger session", () => context.close());
+    await cleanup("stranger notifications", () =>
+      db().notification.deleteMany({ where: { recipientEmail: identity.email } })
+    );
   },
 });

@@ -42,7 +42,12 @@ export default defineConfig({
         timeout: 120_000,
         // Like Vercel, the server runs in UTC. Meeting times must be right
         // whatever the zone of the server or the browser.
-        env: { TZ: "UTC" },
+        env: {
+          TZ: "UTC",
+          // Tests must never message real people, whatever .env says.
+          NOTIFY_MODE: "log",
+          SLACK_BOT_TOKEN: "",
+        },
       }
     : undefined,
 });

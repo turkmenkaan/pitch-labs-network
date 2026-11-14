@@ -12,6 +12,7 @@ import {
   rolesHeldBy,
   writeAudit,
 } from "@/lib/admin";
+import { deliver } from "@/lib/notify";
 import type { ActionState } from "../actions";
 
 // Every action here starts with getCurrentAdmin(), which 404s non-admins.
@@ -283,6 +284,35 @@ export async function resolveConflict(
   revalidateAdmin();
   revalidatePath("/advisor");
   return { ok: true, message: "Conflict resolved." };
+}
+
+// --- Notifications ----------------------------------------------------------
+export async function retryNotification(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const { current: admin } = await getCurrentAdmin();
+
+  const id = String(formData.get("notificationId") ?? "");
+  const n = await prisma.notification.findUnique({ where: { id } });
+  if (!n) return { ok: false, error: "Notification not found." };
+  if (n.status !== "FAILED") {
+    return { ok: false, error: "Only failed notifications can be retried." };
+  }
+
+  await deliver(id, true);
+  const after = await prisma.notification.findUnique({ where: { id } });
+  await writeAudit(
+    admin,
+    "notification.retry",
+    "meeting",
+    id,
+    `Retried ${n.type} to ${n.recipientEmail}: ${after?.status ?? "unknown"}`
+  );
+  revalidatePath("/admin/notifications");
+  return after?.status === "FAILED"
+    ? { ok: false, error: `Still failing: ${after.lastError ?? "unknown error"}` }
+    : { ok: true, message: "Retried." };
 }
 
 // --- View as (read-only preview) -------------------------------------------

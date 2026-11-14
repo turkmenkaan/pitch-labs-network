@@ -134,8 +134,10 @@ npm run test:e2e                # starts `npm run dev` if it isn't running
   availability (`availability`), conflict resolution (`conflicts`), cancelling accepted meetings
   (`cancellation`), member and
   admin management (`member-management`, `admin-management`), the admin
-  "view as" preview (`view-as`), and the audit log and activity pages
-  (`audit-and-activity`). Every new feature needs a test here (see `CLAUDE.md`).
+  "view as" preview (`view-as`), the audit log and activity pages
+  (`audit-and-activity`), and Slack notifications (`notifications`, run in
+  `NOTIFY_MODE=log`, so nothing reaches Slack; the retry-sweep success test
+  needs `CRON_SECRET` in `.env` and is skipped without it). Every new feature needs a test here (see `CLAUDE.md`).
 - Not covered: the "can't remove the last admin" guard, because reaching it
   means deleting the real admins in a shared database.
 - Each worker signs in once per role and reuses that session: Supabase limits
@@ -149,6 +151,36 @@ npm run test:e2e                # starts `npm run dev` if it isn't running
   `E2E_DATABASE_URL` (the pooled URL with `schema=staging`) in `.env.e2e`.
 - In CI, provide the same variables as secrets instead of `.env.e2e`
   (`CI=true` switches to retries and the GitHub reporter).
+
+## Slack notifications
+
+The app DMs people on Slack when something needs their attention: a new
+request (to the advisor), a decision (to the founder), a cancellation (to the
+other side, with the reason) and a meeting conflict (to every admin).
+
+How it works: each event writes a row to the `Notification` outbox table, and
+the message is sent right after the response (`after()`), so Slack being slow or
+down never fails a user's action. Failed sends are retried with backoff by
+`/api/notifications/sweep` (a daily Vercel cron, see `vercel.json`; Hobby plans
+can't run it more often). Admins see every send, and can retry failures, under
+**Admin > Notifications**. People are found by email, so a member's email must
+match their Slack email.
+
+One-time Slack setup (separate from the sign-in app's OIDC settings): add a bot
+user to a Slack app (the sign-in app or a new one), give it the bot token scopes
+`chat:write`, `users:read` and `users:read.email`, install it to the workspace,
+and put the `xoxb-` token in `SLACK_BOT_TOKEN`.
+
+| Variable            | Purpose                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `NOTIFY_MODE`       | `off` sends nothing, `log` (default) records and logs, `slack` really sends |
+| `SLACK_BOT_TOKEN`   | Bot token for `slack` mode                                                |
+| `NOTIFY_ALLOWLIST`  | Optional comma-separated emails; when set, only they get real messages    |
+| `APP_URL`           | Public URL, used for links in messages                                    |
+| `CRON_SECRET`       | Bearer secret for the sweep route (Vercel sends it to cron jobs)          |
+
+Keep local and staging on `log` (or `slack` with a `NOTIFY_ALLOWLIST` of your
+own email) so test data never messages real people.
 
 ## Project map
 
