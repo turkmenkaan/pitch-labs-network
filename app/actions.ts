@@ -29,6 +29,7 @@ import {
 import { canChangeTime } from "@/lib/meeting";
 import { checkSlots, otherSide, type Side } from "@/lib/slots";
 import { parseEasternInput } from "@/lib/time";
+import { isAllowedStage } from "@/lib/profile";
 import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
@@ -736,6 +737,10 @@ export async function updateFounderProfile(
   }
   if (website && !/^https?:\/\//i.test(website)) {
     return { ok: false, error: "Website should start with http(s)://" };
+  }
+
+  if (stage && !isAllowedStage(stage, current.stage)) {
+    return { ok: false, error: "Choose a stage from the list." };
   }
 
   await prisma.founder.update({
