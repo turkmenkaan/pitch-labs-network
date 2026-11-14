@@ -8,6 +8,7 @@ import {
   type ActionState,
 } from "../actions";
 import { CancelMeeting } from "./CancelMeeting";
+import { TimeNegotiation, type ProposalView } from "./TimeNegotiation";
 import { FOUNDER_STAGE_LABELS, type FounderStage } from "@/lib/meeting";
 
 export type FounderMeetingView = {
@@ -25,6 +26,7 @@ export type FounderMeetingView = {
   canCancel: boolean;
   cancelledBy: string | null; // "advisor" | "founder"
   cancelReason: string | null;
+  proposal: ProposalView;
 };
 
 const STAGE_PILL: Record<FounderStage, string> = {
@@ -33,6 +35,8 @@ const STAGE_PILL: Record<FounderStage, string> = {
   WITHDRAWN: "pill-withdrawn",
   CANCELLED: "pill-withdrawn",
   ACCEPTED: "pill-accepted",
+  TIME_PROPOSED: "pill-pending",
+  PICK_A_TIME: "pill-pending",
   UPCOMING: "pill-upcoming",
   NEEDS_ANSWER: "pill-pending",
   AWAITING_ADVISOR: "pill-pending",
@@ -133,12 +137,20 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
         </p>
       )}
 
-      {m.stage === "ACCEPTED" && (
+      {(m.stage === "ACCEPTED" ||
+        m.stage === "TIME_PROPOSED" ||
+        m.stage === "PICK_A_TIME") && (
         <div className="stage-form">
           <p className="stage-prompt">
-            Accepted. Arrange a time with {m.advisorName} directly.
+            Accepted. Agree a time with {m.advisorName} here.
             {m.decisionNote && <> They said: “{m.decisionNote}”</>}
           </p>
+          <TimeNegotiation
+            requestId={m.id}
+            side="founder"
+            otherName={m.advisorName}
+            proposal={m.proposal}
+          />
           <details className="reschedule">
             <summary>Already met?</summary>
             <AnswerForm m={m} compact />
@@ -147,10 +159,31 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
       )}
 
       {m.stage === "UPCOMING" && (
-        <p className="stage-prompt stage-form">
-          {m.advisorName} noted <b>{m.scheduledAtLabel}</b>. We&apos;ll ask how it
-          went once that time has passed.
-        </p>
+        <div className="stage-form">
+          <p className="stage-prompt">
+            Confirmed for <b>{m.scheduledAtLabel}</b>. We&apos;ll ask how it went
+            once that time has passed.
+          </p>
+          {m.canCancel &&
+            (m.proposal ? (
+              <TimeNegotiation
+                requestId={m.id}
+                side="founder"
+                otherName={m.advisorName}
+                proposal={m.proposal}
+              />
+            ) : (
+              <details className="reschedule">
+                <summary>Propose a new time</summary>
+                <TimeNegotiation
+                  requestId={m.id}
+                  side="founder"
+                  otherName={m.advisorName}
+                  proposal={null}
+                />
+              </details>
+            ))}
+        </div>
       )}
 
       {m.canCancel && (

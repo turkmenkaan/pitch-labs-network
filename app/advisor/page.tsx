@@ -11,6 +11,7 @@ import { AutoRefresh } from "../components/AutoRefresh";
 import { TopBar } from "../components/TopBar";
 import { AvailabilityForm } from "../components/AvailabilityForm";
 import { RequestCard, type PendingRequest } from "../components/RequestCard";
+import { openProposal } from "@/lib/slots";
 import { MeetingCard, type MeetingView } from "../components/MeetingCard";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,9 @@ export const dynamic = "force-dynamic";
 const STAGE_ORDER: Record<MeetingStage, number> = {
   AWAITING_OUTCOME: 0,
   NEEDS_FEEDBACK: 1,
+  PICK_A_TIME: 2,
   NEEDS_SCHEDULE: 2,
+  TIME_PROPOSED: 3,
   UPCOMING: 3,
   COMPLETED_MET: 4,
   DID_NOT_MEET: 5,
@@ -39,7 +42,7 @@ export default async function AdvisorDashboard() {
     getAvailability(current.id, month),
     prisma.meetingRequest.findMany({
       where: { advisorId: current.id, month },
-      include: { founder: true, notifications: true },
+      include: { founder: true, notifications: true, slots: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -61,7 +64,8 @@ export default async function AdvisorDashboard() {
   });
 
   const toMeeting = (r: (typeof requests)[number]): MeetingView => {
-    const stage = getMeetingStage(r)!;
+    const proposal = openProposal(r.slots);
+    const stage = getMeetingStage({ ...r, proposedBy: proposal?.by ?? null })!;
     return {
       id: r.id,
       topic: r.topic,
@@ -78,6 +82,13 @@ export default async function AdvisorDashboard() {
         (n) => n.type === "MEETING_CONFLICT" && !n.resolved
       ),
       canCancel: canCancelMeeting(r),
+      proposal: proposal && {
+        by: proposal.by,
+        slots: proposal.slots.map((x) => ({
+          id: x.id,
+          label: fmtMeetingTime(x.startsAt, { weekday: true }),
+        })),
+      },
     };
   };
 
@@ -189,7 +200,7 @@ export default async function AdvisorDashboard() {
               <span className="count">
                 {
                   meetings.filter((m) =>
-                    ["NEEDS_SCHEDULE", "AWAITING_OUTCOME", "NEEDS_FEEDBACK"].includes(
+                    ["NEEDS_SCHEDULE", "PICK_A_TIME", "AWAITING_OUTCOME", "NEEDS_FEEDBACK"].includes(
                       m.stage
                     )
                   ).length

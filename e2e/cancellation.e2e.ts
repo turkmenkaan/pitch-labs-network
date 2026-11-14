@@ -298,10 +298,10 @@ test("on an upcoming meeting, Reschedule and Cancel sit side by side", async ({
 
   // They open one panel at a time.
   await reschedule.click();
-  await expect(meeting.locator('input[name="scheduledAt"]')).toBeVisible();
+  await expect(meeting.locator('input[name="slot"]').first()).toBeVisible();
   await cancel.click();
   await expect(meeting.getByLabel(/^Reason/)).toBeVisible();
-  await expect(meeting.locator('input[name="scheduledAt"]')).toHaveCount(0);
+  await expect(meeting.locator('input[name="slot"]')).toHaveCount(0);
   await cancel.click();
   await expect(meeting.getByLabel(/^Reason/)).toHaveCount(0);
 });

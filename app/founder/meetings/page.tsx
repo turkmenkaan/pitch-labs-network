@@ -5,6 +5,7 @@ import { fmtMeetingTime } from "@/lib/format";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { getFounderUsage } from "@/lib/guardrails";
 import { canCancelMeeting, getFounderStage, type FounderStage } from "@/lib/meeting";
+import { openProposal } from "@/lib/slots";
 import { AutoRefresh } from "@/app/components/AutoRefresh";
 import { TopBar } from "@/app/components/TopBar";
 import { UsageMeter } from "@/app/components/UsageMeter";
@@ -16,8 +17,8 @@ import {
 export const dynamic = "force-dynamic";
 
 const SECTIONS: { title: string; stages: FounderStage[]; empty?: string }[] = [
-  { title: "Needs your answer", stages: ["NEEDS_ANSWER"] },
-  { title: "Accepted & upcoming", stages: ["ACCEPTED", "UPCOMING"] },
+  { title: "Needs your answer", stages: ["NEEDS_ANSWER", "PICK_A_TIME"] },
+  { title: "Accepted & upcoming", stages: ["ACCEPTED", "TIME_PROPOSED", "UPCOMING"] },
   { title: "Waiting on the advisor", stages: ["WAITING_ADVISOR"] },
   {
     title: "Past",
@@ -32,7 +33,7 @@ export default async function FounderMeetings() {
 
   const requests = await prisma.meetingRequest.findMany({
     where: { founderId: current.id },
-    include: { advisor: true, notifications: true },
+    include: { advisor: true, notifications: true, slots: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -40,6 +41,7 @@ export default async function FounderMeetings() {
     const ruling = r.notifications.find(
       (n) => n.type === "MEETING_CONFLICT" && n.resolved
     );
+    const proposal = openProposal(r.slots);
     return {
       id: r.id,
       topic: r.topic,
@@ -48,8 +50,8 @@ export default async function FounderMeetings() {
       advisorTitle: r.advisor.title,
       estimatedHours: r.estimatedHours,
       month: formatMonth(r.month),
-      stage: getFounderStage(r),
-      scheduledAtLabel: r.scheduledAt ? fmtMeetingTime(r.scheduledAt) : null,
+      stage: getFounderStage({ ...r, proposedBy: proposal?.by ?? null }),
+      scheduledAtLabel: r.scheduledAt ? fmtMeetingTime(r.scheduledAt, { weekday: true }) : null,
       decisionNote: r.decisionNote,
       adminRuling:
         r.adminMet != null
@@ -58,6 +60,13 @@ export default async function FounderMeetings() {
       canCancel: canCancelMeeting(r),
       cancelledBy: r.cancelledBy,
       cancelReason: r.cancelReason,
+      proposal: proposal && {
+        by: proposal.by,
+        slots: proposal.slots.map((x) => ({
+          id: x.id,
+          label: fmtMeetingTime(x.startsAt, { weekday: true }),
+        })),
+      },
       sortKey: r.createdAt.getTime(),
     };
   });
@@ -75,8 +84,8 @@ export default async function FounderMeetings() {
           <h1>My meetings, {firstName}.</h1>
           <p className="sub">
             Every request you&apos;ve sent, and where it stands. Once an advisor
-            accepts, agree a time with them directly in your own calendar, then
-            tell us here how it went.
+            accepts, propose times or pick one of theirs here, then tell us how
+            it went.
           </p>
         </div>
 

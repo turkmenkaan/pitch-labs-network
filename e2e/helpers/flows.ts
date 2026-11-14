@@ -32,3 +32,20 @@ export function card(page: Page, topic: string): Locator {
 export function datetimeLocal(date: Date): string {
   return toEasternInput(date);
 }
+
+// Fills the "Propose times" form on a card with Eastern wall-clock times and
+// sends it.
+export async function proposeTimes(cardLocator: Locator, times: Date[]): Promise<void> {
+  const inputs = cardLocator.locator('input[name="slot"]');
+  for (const [i, time] of times.entries()) {
+    await inputs.nth(i).fill(datetimeLocal(time));
+  }
+  await cardLocator.getByRole("button", { name: "Propose times" }).click();
+}
+
+// Opens the advisor's "Already agreed a time?" shortcut and enters a time.
+export async function enterAgreedTime(cardLocator: Locator, time: Date): Promise<void> {
+  await cardLocator.getByText("Already agreed a time?").click();
+  await cardLocator.locator('input[name="scheduledAt"]').fill(datetimeLocal(time));
+  await cardLocator.getByRole("button", { name: "Set time" }).click();
+}

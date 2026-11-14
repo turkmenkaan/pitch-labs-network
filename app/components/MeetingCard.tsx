@@ -10,6 +10,7 @@ import {
 } from "../actions";
 import type { MeetingStage } from "@/lib/meeting";
 import { CancelForm, CancelMeeting } from "./CancelMeeting";
+import { TimeNegotiation, type ProposalView } from "./TimeNegotiation";
 import { STAGE_LABELS } from "@/lib/meeting";
 
 export type MeetingView = {
@@ -26,10 +27,13 @@ export type MeetingView = {
   advisorFeedback: string | null;
   hasConflict: boolean;
   canCancel: boolean;
+  proposal: ProposalView;
 };
 
 const STAGE_PILL: Record<MeetingStage, string> = {
   NEEDS_SCHEDULE: "pill-pending",
+  TIME_PROPOSED: "pill-pending",
+  PICK_A_TIME: "pill-pending",
   UPCOMING: "pill-upcoming",
   AWAITING_OUTCOME: "pill-pending",
   NEEDS_FEEDBACK: "pill-pending",
@@ -63,7 +67,7 @@ function ScheduleForm({ m }: { m: MeetingView }) {
   return (
     <form action={action} className="stage-form">
       <p className="stage-prompt">
-        You&apos;ve accepted this meeting. What date &amp; time did you agree on?
+        Agreed a time already, outside the app? Enter it here.
       </p>
       <input type="hidden" name="requestId" value={m.id} />
       <div className="stage-row">
@@ -84,6 +88,25 @@ function ScheduleForm({ m }: { m: MeetingView }) {
   );
 }
 
+// Agreeing a time: propose or pick through the app, or enter a time that was
+// settled elsewhere.
+function Scheduling({ m }: { m: MeetingView }) {
+  return (
+    <>
+      <TimeNegotiation
+        requestId={m.id}
+        side="advisor"
+        otherName={m.founderName}
+        proposal={m.proposal}
+      />
+      <details className="reschedule">
+        <summary>Already agreed a time?</summary>
+        <ScheduleForm m={m} />
+      </details>
+    </>
+  );
+}
+
 // An upcoming meeting can be rescheduled or cancelled. The two sit side by side
 // and open one panel below, one at a time.
 function UpcomingActions({ m }: { m: MeetingView }) {
@@ -93,14 +116,16 @@ function UpcomingActions({ m }: { m: MeetingView }) {
   return (
     <>
       <div className="stage-toggles">
-        <button
-          type="button"
-          className="stage-toggle"
-          aria-expanded={open === "reschedule"}
-          onClick={() => toggle("reschedule")}
-        >
-          Reschedule
-        </button>
+        {!m.proposal && (
+          <button
+            type="button"
+            className="stage-toggle"
+            aria-expanded={open === "reschedule"}
+            onClick={() => toggle("reschedule")}
+          >
+            Reschedule
+          </button>
+        )}
         {m.canCancel && (
           <button
             type="button"
@@ -112,7 +137,7 @@ function UpcomingActions({ m }: { m: MeetingView }) {
           </button>
         )}
       </div>
-      {open === "reschedule" && <ScheduleForm m={m} />}
+      {open === "reschedule" && <Scheduling m={m} />}
       {open === "cancel" && (
         <CancelForm
           requestId={m.id}
@@ -204,7 +229,9 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
     <article className="card req meeting">
       <Header m={m} />
 
-      {m.stage === "NEEDS_SCHEDULE" && <ScheduleForm m={m} />}
+      {(m.stage === "NEEDS_SCHEDULE" ||
+        m.stage === "TIME_PROPOSED" ||
+        m.stage === "PICK_A_TIME") && <Scheduling m={m} />}
 
       {m.stage === "UPCOMING" && (
         <div className="stage-form">
@@ -212,6 +239,7 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
             Confirmed for <b>{m.scheduledAtLabel}</b>. We&apos;ll ask how it went
             once the time passes.
           </p>
+          {m.proposal && <Scheduling m={m} />}
           <UpcomingActions m={m} />
         </div>
       )}
