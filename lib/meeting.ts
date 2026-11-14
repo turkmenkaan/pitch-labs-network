@@ -1,7 +1,9 @@
 // Derives where an ACCEPTED meeting is in its lifecycle, so the UI doesn't have
 // to juggle the underlying nullable fields directly.
 //
-//   NEEDS_SCHEDULE   accepted, no agreed date/time yet
+//   NEEDS_SCHEDULE   accepted, no agreed date/time yet and no times proposed
+//   TIME_PROPOSED    the advisor proposed times and is waiting for the founder
+//   PICK_A_TIME      the founder proposed times and the advisor needs to answer
 //   UPCOMING         scheduled, meeting is in the future
 //   AWAITING_OUTCOME scheduled time has passed, advisor hasn't said if it happened
 //   NEEDS_FEEDBACK   advisor confirmed it happened, hasn't left feedback
@@ -10,6 +12,8 @@
 
 export type MeetingStage =
   | "NEEDS_SCHEDULE"
+  | "TIME_PROPOSED"
+  | "PICK_A_TIME"
   | "UPCOMING"
   | "AWAITING_OUTCOME"
   | "NEEDS_FEEDBACK"
@@ -22,6 +26,8 @@ type LifecycleFields = {
   advisorMet: boolean | null;
   adminMet?: boolean | null;
   advisorFeedback: string | null;
+  // Who has times on the table for this meeting, if anyone (see lib/slots.ts).
+  proposedBy?: "advisor" | "founder" | null;
 };
 
 export function getMeetingStage(
@@ -38,7 +44,11 @@ export function getMeetingStage(
   }
 
   // Outcome not recorded yet.
-  if (!m.scheduledAt) return "NEEDS_SCHEDULE";
+  if (!m.scheduledAt) {
+    if (m.proposedBy === "advisor") return "TIME_PROPOSED";
+    if (m.proposedBy === "founder") return "PICK_A_TIME";
+    return "NEEDS_SCHEDULE";
+  }
   return m.scheduledAt.getTime() > now.getTime()
     ? "UPCOMING"
     : "AWAITING_OUTCOME";
@@ -66,8 +76,25 @@ export function canCancelMeeting(
   );
 }
 
+// Times can be proposed, picked or entered while the meeting is accepted, before
+// anyone says whether it happened, and before an agreed time has passed.
+export function canChangeTime(
+  m: {
+    status: string;
+    scheduledAt: Date | null;
+    advisorMet: boolean | null;
+    founderMet?: boolean | null;
+    adminMet?: boolean | null;
+  },
+  now: Date = new Date()
+): boolean {
+  return canCancelMeeting(m, now);
+}
+
 export const STAGE_LABELS: Record<MeetingStage, string> = {
   NEEDS_SCHEDULE: "Needs a time",
+  TIME_PROPOSED: "Waiting on founder",
+  PICK_A_TIME: "Pick a time",
   UPCOMING: "Upcoming",
   AWAITING_OUTCOME: "Did it happen?",
   NEEDS_FEEDBACK: "Add feedback",
@@ -76,15 +103,17 @@ export const STAGE_LABELS: Record<MeetingStage, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// The founder's view of the same request. Scheduling happens outside the app
-// (calendar of their choice), so `scheduledAt` is an optional note the advisor
-// may have recorded, never a gate on the founder.
+// The founder's view of the same request. The two sides agree a time by
+// proposing and picking slots (lib/slots.ts); `scheduledAt` is the agreed time.
+// It never gates the founder: they can always say they already met.
 //
 //   WAITING_ADVISOR          pending, advisor hasn't decided
 //   DECLINED / WITHDRAWN     closed without a meeting
 //   CANCELLED                accepted, then either side cancelled before it happened
-//   ACCEPTED                 accepted, no time recorded: arrange it directly
-//   UPCOMING                 accepted, advisor recorded a time that's ahead
+//   ACCEPTED                 accepted, no time agreed and none proposed
+//   TIME_PROPOSED            the founder proposed times, waiting for the advisor
+//   PICK_A_TIME              the advisor proposed times, the founder answers
+//   UPCOMING                 accepted, a time is agreed and ahead
 //   NEEDS_ANSWER             a recorded time has passed and the founder hasn't
 //                            said whether it happened
 //   AWAITING_ADVISOR         founder answered, advisor hasn't yet
@@ -98,6 +127,8 @@ export type FounderStage =
   | "WITHDRAWN"
   | "CANCELLED"
   | "ACCEPTED"
+  | "TIME_PROPOSED"
+  | "PICK_A_TIME"
   | "UPCOMING"
   | "NEEDS_ANSWER"
   | "AWAITING_ADVISOR"
@@ -112,6 +143,7 @@ type FounderFields = {
   advisorMet: boolean | null;
   founderMet: boolean | null;
   adminMet: boolean | null;
+  proposedBy?: "advisor" | "founder" | null;
 };
 
 export function getFounderStage(
@@ -132,7 +164,11 @@ export function getFounderStage(
   }
 
   // Founder hasn't answered.
-  if (!m.scheduledAt) return "ACCEPTED";
+  if (!m.scheduledAt) {
+    if (m.proposedBy === "founder") return "TIME_PROPOSED";
+    if (m.proposedBy === "advisor") return "PICK_A_TIME";
+    return "ACCEPTED";
+  }
   return m.scheduledAt.getTime() > now.getTime() ? "UPCOMING" : "NEEDS_ANSWER";
 }
 
@@ -142,6 +178,8 @@ export const FOUNDER_STAGE_LABELS: Record<FounderStage, string> = {
   WITHDRAWN: "Withdrawn",
   CANCELLED: "Cancelled",
   ACCEPTED: "Accepted",
+  TIME_PROPOSED: "Waiting on advisor",
+  PICK_A_TIME: "Pick a time",
   UPCOMING: "Upcoming",
   NEEDS_ANSWER: "Did it happen?",
   AWAITING_ADVISOR: "Waiting on advisor",

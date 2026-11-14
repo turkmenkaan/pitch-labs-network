@@ -26,7 +26,10 @@ import {
   requestDecidedMessage,
   requestSentMessage,
 } from "@/lib/notify/messages";
+import { canChangeTime } from "@/lib/meeting";
+import { checkSlots, otherSide, type Side } from "@/lib/slots";
 import { parseEasternInput } from "@/lib/time";
+import { isAllowedStage } from "@/lib/profile";
 import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
@@ -293,14 +296,207 @@ export async function scheduleMeeting(
     return { ok: false, error: "Not your meeting." };
   }
 
-  await prisma.meetingRequest.update({
-    where: { id: requestId },
-    data: { scheduledAt },
+  // The time is the advisor's to record, but not once anyone has said whether
+  // the meeting happened. Entering it settles any times still on the table.
+  const saved = await prisma.$transaction(async (tx) => {
+    const updated = await tx.meetingRequest.updateMany({
+      where: {
+        id: requestId,
+        status: "ACCEPTED",
+        advisorMet: null,
+        founderMet: null,
+        adminMet: null,
+      },
+      data: { scheduledAt },
+    });
+    if (updated.count === 0) return false;
+    await tx.meetingSlot.updateMany({
+      where: { meetingRequestId: requestId, status: "OPEN" },
+      data: { status: "SUPERSEDED" },
+    });
+    return true;
   });
+  if (!saved) {
+    return { ok: false, error: "This meeting can't be rescheduled any more." };
+  }
 
   // TODO(later): generate calendar invite + video link, notify the founder.
   revalidatePath("/advisor");
+  revalidatePath("/founder/meetings");
   return { ok: true, message: "Meeting time saved." };
+}
+
+// --- Agreeing a time: propose and pick -------------------------------------
+// Either side proposes up to three times for an accepted meeting; the other
+// side picks one (it becomes the meeting's time) or answers with times of their
+// own. Only the latest round stays open. The current time, if any, stays in
+// force until a new one is picked.
+
+function revalidateScheduling() {
+  revalidatePath("/advisor");
+  revalidatePath("/founder/meetings");
+}
+
+async function proposeTimes(
+  requestId: string,
+  side: Side,
+  memberId: string,
+  rawSlots: string[]
+): Promise<ActionState> {
+  const checked = checkSlots(rawSlots);
+  if ("error" in checked) return { ok: false, error: checked.error };
+
+  const request = await prisma.meetingRequest.findUnique({ where: { id: requestId } });
+  const mine =
+    request && (side === "advisor" ? request.advisorId : request.founderId) === memberId;
+  if (!request || !mine) return { ok: false, error: "Meeting not found." };
+  if (!canChangeTime(request)) {
+    return { ok: false, error: "This meeting's time can't be changed any more." };
+  }
+
+  const done = await prisma.$transaction(async (tx) => {
+    // Re-check inside the transaction so a cancel can't slip in between.
+    const live = await tx.meetingRequest.count({
+      where: {
+        id: requestId,
+        status: "ACCEPTED",
+        advisorMet: null,
+        founderMet: null,
+        adminMet: null,
+      },
+    });
+    if (live === 0) return false;
+    await tx.meetingSlot.updateMany({
+      where: { meetingRequestId: requestId, status: "OPEN" },
+      data: { status: "SUPERSEDED" },
+    });
+    await tx.meetingSlot.createMany({
+      data: checked.slots.map((startsAt) => ({
+        meetingRequestId: requestId,
+        startsAt,
+        proposedBy: side,
+      })),
+    });
+    return true;
+  });
+  if (!done) return { ok: false, error: "This meeting's time can't be changed any more." };
+
+  revalidateScheduling();
+  return { ok: true, message: "Times sent." };
+}
+
+export async function proposeTimesAsAdvisor(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingAdvisor();
+  return proposeTimes(
+    String(formData.get("requestId") ?? ""),
+    "advisor",
+    current.id,
+    formData.getAll("slot").map(String)
+  );
+}
+
+export async function proposeTimesAsFounder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingFounder();
+  return proposeTimes(
+    String(formData.get("requestId") ?? ""),
+    "founder",
+    current.id,
+    formData.getAll("slot").map(String)
+  );
+}
+
+async function pickTime(
+  requestId: string,
+  side: Side,
+  memberId: string,
+  slotId: string
+): Promise<ActionState> {
+  if (!slotId) return { ok: false, error: "Choose one of the proposed times." };
+
+  const request = await prisma.meetingRequest.findUnique({ where: { id: requestId } });
+  const mine =
+    request && (side === "advisor" ? request.advisorId : request.founderId) === memberId;
+  if (!request || !mine) return { ok: false, error: "Meeting not found." };
+
+  const gone = "That time was already taken or withdrawn.";
+  const picked = await prisma.$transaction(async (tx) => {
+    // Only the side that did not propose can answer, and only while the meeting
+    // is still open and the slot is still on the table.
+    const slot = await tx.meetingSlot.findFirst({
+      where: {
+        id: slotId,
+        meetingRequestId: requestId,
+        status: "OPEN",
+        proposedBy: otherSide(side),
+        startsAt: { gt: new Date() },
+        meetingRequest: {
+          status: "ACCEPTED",
+          advisorMet: null,
+          founderMet: null,
+          adminMet: null,
+        },
+      },
+    });
+    if (!slot) return null;
+    const claimed = await tx.meetingSlot.updateMany({
+      where: { id: slot.id, status: "OPEN" },
+      data: { status: "PICKED" },
+    });
+    if (claimed.count === 0) return null;
+    await tx.meetingSlot.updateMany({
+      where: { meetingRequestId: requestId, status: "OPEN" },
+      data: { status: "SUPERSEDED" },
+    });
+    await tx.meetingRequest.update({
+      where: { id: requestId },
+      data: { scheduledAt: slot.startsAt },
+    });
+    return slot;
+  });
+  if (!picked) return { ok: false, error: gone };
+
+  revalidateScheduling();
+  return { ok: true, message: "Time confirmed." };
+}
+
+export async function pickTimeAsAdvisor(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingAdvisor();
+  return pickTime(
+    String(formData.get("requestId") ?? ""),
+    "advisor",
+    current.id,
+    String(formData.get("slotId") ?? "")
+  );
+}
+
+export async function pickTimeAsFounder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingFounder();
+  return pickTime(
+    String(formData.get("requestId") ?? ""),
+    "founder",
+    current.id,
+    String(formData.get("slotId") ?? "")
+  );
 }
 
 // Step 2: once the time has passed, advisor says whether it happened.
@@ -541,6 +737,10 @@ export async function updateFounderProfile(
   }
   if (website && !/^https?:\/\//i.test(website)) {
     return { ok: false, error: "Website should start with http(s)://" };
+  }
+
+  if (stage && !isAllowedStage(stage, current.stage)) {
+    return { ok: false, error: "Choose a stage from the list." };
   }
 
   await prisma.founder.update({

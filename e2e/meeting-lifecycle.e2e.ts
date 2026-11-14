@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { DEFAULT_MONTHLY_HOURS } from "../lib/guardrails";
 import { db, expect, test } from "./fixtures";
 import { createRequest, uniqueTopic } from "./helpers/data";
-import { card, datetimeLocal, sendRequest, usageMeter } from "./helpers/flows";
+import { card, enterAgreedTime, proposeTimes, sendRequest, usageMeter } from "./helpers/flows";
 
 test("a request goes from sent to accepted, scheduled and confirmed by both sides", async ({
   founder,
@@ -22,10 +22,20 @@ test("a request goes from sent to accepted, scheduled and confirmed by both side
   const meeting = advisor.page.locator("article.meeting", { hasText: topic });
   await expect(meeting.locator(".pill")).toHaveText("Needs a time");
 
-  // The advisor records a time. The app only allows a future time.
+  // The advisor proposes times and the founder picks one. The app only allows
+  // future times.
   const inTwoDays = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
-  await meeting.locator('input[name="scheduledAt"]').fill(datetimeLocal(inTwoDays));
-  await meeting.getByRole("button", { name: "Set time" }).click();
+  const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  await proposeTimes(meeting, [inTwoDays, inThreeDays]);
+  await expect(meeting.locator(".pill")).toHaveText("Waiting on founder");
+
+  await founder.page.goto("/founder/meetings");
+  const proposed = card(founder.page, topic);
+  await expect(proposed.locator(".pill")).toHaveText("Pick a time");
+  await proposed.getByRole("button", { name: "Confirm this time" }).click();
+  await expect(proposed.locator(".pill")).toHaveText("Upcoming");
+
+  await advisor.page.reload();
   await expect(meeting.locator(".pill")).toHaveText("Upcoming");
 
   // Time travel: the app has no clock to fake, so move the meeting into the past.
@@ -159,8 +169,7 @@ test.describe("meeting times are in Eastern Time", () => {
     await advisor.page.goto("/advisor");
     const meeting = advisor.page.locator("article.meeting", { hasText: topic });
     await expect(meeting).toContainText("All times are in Eastern Time (ET).");
-    await meeting.locator('input[name="scheduledAt"]').fill(datetimeLocal(inAnHour));
-    await meeting.getByRole("button", { name: "Set time" }).click();
+    await enterAgreedTime(meeting, inAnHour);
 
     // Accepted as a future time, not rejected or treated as already started.
     await expect(meeting.locator(".pill")).toHaveText("Upcoming");
@@ -180,8 +189,7 @@ test.describe("meeting times are in Eastern Time", () => {
 
     await advisor.page.goto("/advisor");
     const meeting = advisor.page.locator("article.meeting", { hasText: topic });
-    await meeting.locator('input[name="scheduledAt"]').fill(datetimeLocal(anHourAgo));
-    await meeting.getByRole("button", { name: "Set time" }).click();
+    await enterAgreedTime(meeting, anHourAgo);
 
     await expect(meeting).toContainText("Pick a time in the future.");
     expect(

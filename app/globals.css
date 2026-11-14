@@ -1963,3 +1963,21 @@ body[data-preview] main form select {
   color: var(--teal);
   text-decoration: none;
 }
+
+/* --- Agreeing a meeting time ---------------------------------------------- */
+.slot-list {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+}
+.slot-options {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.slot-option {
+  cursor: pointer;
+}
+.stage-form .dt-input {
+  display: block;
+  margin-bottom: 8px;
+}

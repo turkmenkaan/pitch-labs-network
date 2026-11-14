@@ -64,8 +64,8 @@ model MonthlyAvailability {
   @@unique([advisorId, month])
 }
 
-// status is one of: "PENDING" | "ACCEPTED" | "REJECTED"
-// (SQLite has no native enum; the union is enforced in lib/types.ts)
+// status is one of: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN" | "CANCELLED"
+// (the union is enforced in lib/types.ts)
 model MeetingRequest {
   id             String        @id @default(cuid())
   advisor        Advisor       @relation(fields: [advisorId], references: [id])
@@ -102,6 +102,22 @@ model MeetingRequest {
   cancelReason   String? // required when cancelling
 
   notifications  AdminNotification[]
+  slots          MeetingSlot[]
+}
+
+// A time one side proposed for an accepted meeting. The other side picks one
+// (it becomes scheduledAt) or answers with times of their own. Only the latest
+// round is OPEN; earlier rounds are SUPERSEDED.
+model MeetingSlot {
+  id               String         @id @default(cuid())
+  meetingRequest   MeetingRequest @relation(fields: [meetingRequestId], references: [id], onDelete: Cascade)
+  meetingRequestId String
+  startsAt         DateTime
+  proposedBy       String // "advisor" | "founder"
+  status           String         @default("OPEN") // "OPEN" | "PICKED" | "SUPERSEDED"
+  createdAt        DateTime       @default(now())
+
+  @@index([meetingRequestId, status])
 }
 
 // Internal notifications for admins. Phase 1 only generates these on a
