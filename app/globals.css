@@ -770,6 +770,7 @@ button.star:hover {
   color: var(--ink-faint);
 }
 .dossier-form input,
+.dossier-form select,
 .dossier-form textarea {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -780,7 +781,16 @@ button.star:hover {
   color: var(--ink);
   resize: vertical;
 }
+.dossier-form select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23857f70' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
 .dossier-form input:focus,
+.dossier-form select:focus,
 .dossier-form textarea:focus {
   outline: none;
   border-color: var(--teal);
