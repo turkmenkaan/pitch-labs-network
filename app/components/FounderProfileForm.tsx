@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateFounderProfile, type ActionState } from "../actions";
+import { FOUNDER_STAGES } from "@/lib/profile";
 
 export type FounderProfileValues = {
   name: string;
@@ -56,12 +57,19 @@ export function FounderProfileForm({
       <div className="df-grid">
         <div className="field">
           <label htmlFor="stage">Stage</label>
-          <input
-            id="stage"
-            name="stage"
-            defaultValue={values.stage}
-            placeholder="e.g. Pre-seed, Seed, Series A"
-          />
+          <select id="stage" name="stage" defaultValue={values.stage}>
+            <option value="">Select a stage</option>
+            {/* A stored value that isn't on the list stays selectable. */}
+            {values.stage &&
+              !(FOUNDER_STAGES as readonly string[]).includes(values.stage) && (
+                <option value={values.stage}>{values.stage}</option>
+              )}
+            {FOUNDER_STAGES.map((stage) => (
+              <option key={stage} value={stage}>
+                {stage}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="field">
           <label htmlFor="industry">Industry</label>

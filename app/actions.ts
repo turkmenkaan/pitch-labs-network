@@ -20,6 +20,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkReason } from "@/lib/reason";
 import { parseEasternInput } from "@/lib/time";
+import { isAllowedStage } from "@/lib/profile";
 import { currentMonth } from "@/lib/types";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
@@ -488,6 +489,10 @@ export async function updateFounderProfile(
   }
   if (website && !/^https?:\/\//i.test(website)) {
     return { ok: false, error: "Website should start with http(s)://" };
+  }
+
+  if (stage && !isAllowedStage(stage, current.stage)) {
+    return { ok: false, error: "Choose a stage from the list." };
   }
 
   await prisma.founder.update({
