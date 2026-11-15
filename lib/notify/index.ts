@@ -58,6 +58,21 @@ export async function enqueue(items: Outgoing[]): Promise<void> {
   });
 }
 
+// Records and sends right now, for jobs that already run in the background
+// (the daily cron). Never throws for one bad row.
+export async function sendNow(items: Outgoing[]): Promise<number> {
+  if (notifyMode() === "off" || items.length === 0) return 0;
+  await enqueue(items);
+  for (const item of items) {
+    try {
+      await deliverByKey(item.dedupeKey);
+    } catch (e) {
+      console.error("[notify] deliver failed", e);
+    }
+  }
+  return items.length;
+}
+
 async function deliverByKey(dedupeKey: string): Promise<void> {
   const row = await prisma.notification.findUnique({
     where: { dedupeKey },

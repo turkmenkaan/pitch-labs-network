@@ -12,6 +12,7 @@ export async function createRequest(options: {
   hours?: number;
   status?: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
   scheduledAt?: Date | null;
+  meetingUrl?: string | null;
   advisorMet?: boolean | null;
   founderMet?: boolean | null;
   adminMet?: boolean | null;
@@ -26,6 +27,11 @@ export async function createRequest(options: {
       month: currentMonth(),
       status: options.status ?? "PENDING",
       scheduledAt: options.scheduledAt ?? null,
+      ...(options.meetingUrl && {
+        meetingUrl: options.meetingUrl,
+        meetingUrlSetBy: "advisor",
+        meetingUrlSetAt: new Date(),
+      }),
       advisorMet: options.advisorMet ?? null,
       founderMet: options.founderMet ?? null,
       adminMet: options.adminMet ?? null,

@@ -491,3 +491,251 @@ test("confirming a time sends the video link along when the meeting has one", as
   expect(row).toMatchObject({ type: "TIME_CONFIRMED", recipientEmail: advisor.email });
   expect(payloadText(row)).toContain(`<${ZOOM}|Join the video call>`);
 });
+
+// --- Daily reminders ---------------------------------------------------------
+// The daily job (/api/notifications/sweep) sends reminders for whatever is open.
+// Tests move dates back in the database instead of waiting days, then run the
+// job exactly as the cron would.
+test.describe("reminders", () => {
+  const secret = process.env.CRON_SECRET;
+  test.skip(!secret, "CRON_SECRET isn't set for this run.");
+
+  const ago = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const ahead = (hours: number) => new Date(Date.now() + hours * 60 * 60 * 1000);
+
+  async function runDailyJob(request: import("@playwright/test").APIRequestContext) {
+    const res = await request.get("/api/notifications/sweep", {
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    expect(res.status()).toBe(200);
+    return res.json();
+  }
+
+  test("an unanswered request nudges the advisor once, and stops when answered", async ({
+    request,
+    founder,
+    advisor,
+  }) => {
+    const topic = uniqueTopic("Remind request");
+    const fresh = await createRequest({ advisorId: advisor.row.id, founderId: founder.row.id, topic: uniqueTopic("Remind fresh") });
+    const old = await createRequest({ advisorId: advisor.row.id, founderId: founder.row.id, topic });
+    await db().meetingRequest.update({ where: { id: old.id }, data: { createdAt: ago(3) } });
+
+    await runDailyJob(request);
+    const row = await waitForRow(`reminder:request:${old.id}:1`);
+    expect(row).toMatchObject({ type: "REMINDER_REQUEST", recipientEmail: advisor.email });
+    expect(payloadText(row)).toContain(topic);
+    expect(payloadText(row)).toContain(founder.row.name);
+    // A request that is only minutes old isn't nudged.
+    expect(await rowsWithPrefix(`reminder:request:${fresh.id}:`)).toHaveLength(0);
+
+    // Running the job again doesn't repeat it.
+    await runDailyJob(request);
+    expect(await rowsWithPrefix(`reminder:request:${old.id}:`)).toHaveLength(1);
+
+    // Once the advisor answers, the second nudge (due at five days) never comes.
+    // Answer first and only then age the request, so a job run by another test
+    // in between can't legitimately send it.
+    await advisor.page.goto("/advisor");
+    await card(advisor.page, topic).getByRole("button", { name: "Accept" }).click();
+    await expect(card(advisor.page, topic).locator(".pill")).not.toHaveText("Pending");
+    await db().meetingRequest.update({ where: { id: old.id }, data: { createdAt: ago(6) } });
+    await runDailyJob(request);
+    expect(await rowFor(`reminder:request:${old.id}:2`)).toBeNull();
+  });
+
+  test("a meeting with no time nudges the advisor, then the side that must pick", async ({
+    request,
+    founder,
+    advisor,
+  }) => {
+    const topic = uniqueTopic("Remind needs time");
+    const meeting = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic,
+      status: "ACCEPTED",
+    });
+    await db().meetingRequest.update({ where: { id: meeting.id }, data: { decidedAt: ago(3) } });
+
+    await runDailyJob(request);
+    const [first] = await waitForRows(`reminder:needs-time:${meeting.id}:`, 1);
+    expect(first).toMatchObject({ type: "REMINDER_NEEDS_TIME", recipientEmail: advisor.email });
+    expect(payloadText(first)).toContain("Propose a few times");
+
+    // The advisor proposes times; two days of silence later the founder is asked to pick.
+    await advisor.page.goto("/advisor");
+    await proposeTimes(card(advisor.page, topic), [ahead(24 * 5), ahead(24 * 6)]);
+    await expect(card(advisor.page, topic).locator(".pill")).toHaveText("Waiting on founder");
+    await runDailyJob(request);
+    expect(await rowsWithPrefix(`reminder:needs-time:${meeting.id}:`)).toHaveLength(1);
+
+    await db().meetingSlot.updateMany({ where: { meetingRequestId: meeting.id }, data: { createdAt: ago(3) } });
+    await runDailyJob(request);
+    const rows = await waitForRows(`reminder:needs-time:${meeting.id}:`, 2);
+    const toFounder = rows.find((r) => r.recipientEmail === founder.email);
+    expect(toFounder).toBeDefined();
+    expect(payloadText(toFounder!)).toContain("Pick one");
+  });
+
+  test("a meeting tomorrow reminds both sides, with the video link", async ({
+    request,
+    founder,
+    advisor,
+  }) => {
+    const topic = uniqueTopic("Remind soon");
+    const meeting = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic,
+      status: "ACCEPTED",
+      scheduledAt: ahead(20),
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
+    });
+    const farOff = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic: uniqueTopic("Remind far"),
+      status: "ACCEPTED",
+      scheduledAt: ahead(24 * 5),
+    });
+
+    await runDailyJob(request);
+    const rows = await waitForRows(`reminder:soon:${meeting.id}:`, 2);
+    expect(rows.map((r) => r.recipientEmail).sort()).toEqual([advisor.email, founder.email].sort());
+    expect(payloadText(rows[0])).toContain(topic);
+    expect(payloadText(rows[0])).toContain("<https://meet.google.com/abc-defg-hij|Join the video call>");
+    expect(await rowsWithPrefix(`reminder:soon:${farOff.id}:`)).toHaveLength(0);
+
+    await runDailyJob(request);
+    expect(await rowsWithPrefix(`reminder:soon:${meeting.id}:`)).toHaveLength(2);
+  });
+
+  test("cancelled meetings and deactivated members get no reminder", async ({
+    request,
+    founder,
+    advisor,
+  }) => {
+    // Other tests run the daily job at the same time, so set things up so that
+    // no moment in between could look reminder-worthy: deactivate first, and
+    // give the cancelled meeting its time only as it is cancelled.
+    await db().founder.update({ where: { id: founder.row.id }, data: { deactivatedAt: new Date() } });
+    const cancelled = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic: uniqueTopic("Remind cancelled"),
+      status: "ACCEPTED",
+    });
+    await db().meetingRequest.update({
+      where: { id: cancelled.id },
+      data: { status: "CANCELLED", scheduledAt: ahead(10) },
+    });
+    const live = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic: uniqueTopic("Remind deactivated"),
+      status: "ACCEPTED",
+      scheduledAt: ahead(10),
+    });
+
+    await runDailyJob(request);
+    const rows = await waitForRows(`reminder:soon:${live.id}:`, 1);
+    expect(rows[0].recipientEmail).toBe(advisor.email);
+    expect(await rowsWithPrefix(`reminder:soon:${cancelled.id}:`)).toHaveLength(0);
+  });
+
+  test("after the meeting, each side is asked only about their own missing answer", async ({
+    request,
+    founder,
+    advisor,
+  }) => {
+    const topic = uniqueTopic("Remind outcome");
+    const meeting = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic,
+      status: "ACCEPTED",
+      scheduledAt: ago(2),
+      // The advisor has answered; the founder hasn't. (Set up front, as other
+      // tests run the daily job at the same time.)
+      advisorMet: true,
+    });
+
+    await runDailyJob(request);
+    const [row] = await waitForRows(`reminder:outcome:${meeting.id}:`, 1);
+    expect(row).toMatchObject({ type: "REMINDER_OUTCOME", recipientEmail: founder.email });
+    expect(row.dedupeKey).toBe(`reminder:outcome:${meeting.id}:founder:1`);
+    expect(payloadText(row)).toContain("happen");
+
+    // Three days on, one more nudge, and then no more.
+    await db().meetingRequest.update({ where: { id: meeting.id }, data: { scheduledAt: ago(4) } });
+    await runDailyJob(request);
+    await waitForRows(`reminder:outcome:${meeting.id}:`, 2);
+    await runDailyJob(request);
+    expect(await rowsWithPrefix(`reminder:outcome:${meeting.id}:`)).toHaveLength(2);
+
+    // Once the founder answers, nothing more is sent about it.
+    await founder.page.goto("/founder/meetings");
+    await card(founder.page, topic).getByRole("button", { name: "Yes, we met" }).click();
+    await expect(card(founder.page, topic).locator(".pill")).not.toHaveText("Did it happen?");
+    await db().meetingRequest.update({ where: { id: meeting.id }, data: { scheduledAt: ago(10) } });
+    await runDailyJob(request);
+    expect(await rowsWithPrefix(`reminder:outcome:${meeting.id}:`)).toHaveLength(2);
+  });
+
+  test("a conflict that sits for days is raised with the admins", async ({
+    request,
+    founder,
+    advisor,
+    admin,
+  }) => {
+    const topic = uniqueTopic("Remind conflict");
+    const meeting = await createRequest({
+      advisorId: advisor.row.id,
+      founderId: founder.row.id,
+      topic,
+      status: "ACCEPTED",
+      scheduledAt: ago(10),
+      advisorMet: true,
+      founderMet: false,
+    });
+    const stale = await db().adminNotification.create({
+      data: { type: "MEETING_CONFLICT", meetingRequestId: meeting.id, message: "Conflict", createdAt: ago(3000) },
+    });
+    // The admin existed before this conflict did, so a job run by another test
+    // in between may already have sent them a digest without it. Clear that,
+    // and any job from here on will include this conflict.
+    await db().notification.deleteMany({
+      where: { dedupeKey: { startsWith: "reminder:conflicts:" }, recipientEmail: admin.email },
+    });
+
+    await runDailyJob(request);
+    await expect
+      .poll(() =>
+        db().notification.count({
+          where: { dedupeKey: { startsWith: "reminder:conflicts:" }, recipientEmail: admin.email },
+        })
+      )
+      .toBeGreaterThan(0);
+    const row = await db().notification.findFirstOrThrow({
+      where: { dedupeKey: { startsWith: "reminder:conflicts:" }, recipientEmail: admin.email },
+    });
+    expect(row.type).toBe("REMINDER_CONFLICTS");
+    expect(payloadText(row)).toContain("conflict");
+    expect(payloadText(row)).toContain(topic);
+
+    // Resolved conflicts aren't raised. (A fresh one is below the threshold.)
+    await db().adminNotification.update({ where: { id: stale.id }, data: { resolved: true } });
+    await db().notification.deleteMany({ where: { recipientEmail: admin.email } });
+    await runDailyJob(request);
+    await advisor.page.waitForTimeout(2000);
+    const after = await db().notification.findMany({
+      where: { dedupeKey: { startsWith: "reminder:conflicts:" }, recipientEmail: admin.email },
+    });
+    expect(after.every((r) => !payloadText(r).includes(topic))).toBe(true);
+  });
+
+  test("the daily job refuses callers without the secret", async ({ request }) => {
+    expect((await request.get("/api/notifications/sweep")).status()).toBe(401);
+  });
+});

@@ -136,8 +136,9 @@ npm run test:e2e                # starts `npm run dev` if it isn't running
   admin management (`member-management`, `admin-management`), the admin
   "view as" preview (`view-as`), the audit log and activity pages
   (`audit-and-activity`), and Slack notifications (`notifications`, run in
-  `NOTIFY_MODE=log`, so nothing reaches Slack; the retry-sweep success test
-  needs `CRON_SECRET` in `.env` and is skipped without it). Every new feature needs a test here (see `CLAUDE.md`).
+  `NOTIFY_MODE=log`, so nothing reaches Slack; the retry-sweep and reminder
+  tests run the daily job and need `CRON_SECRET` in `.env`, and are skipped
+  without it). Every new feature needs a test here (see `CLAUDE.md`).
 - Not covered: the "can't remove the last admin" guard, because reaching it
   means deleting the real admins in a shared database.
 - Each worker signs in once per role and reuses that session: Supabase limits
@@ -166,6 +167,23 @@ down never fails a user's action. Failed sends are retried with backoff by
 can't run it more often). Admins see every send, and can retry failures, under
 **Admin > Notifications**. People are found by email, so a member's email must
 match their Slack email.
+
+**Reminders** go out from the same daily job (8am Eastern in winter, 9am in
+summer), which runs `lib/notify/reminders.ts` before retrying failed sends:
+
+| Reminder | To | When |
+| -------- | -- | ---- |
+| Request waiting for an answer | the advisor | 2 days, then 5 days (at most two) |
+| Accepted, no time agreed, or a proposal unanswered | whoever must act next | 2 days after accepting or after the latest proposal |
+| Meeting coming up | both sides, with the video link | within 36 hours, once per agreed time |
+| "Did it happen?" | each side that hasn't answered | 1 day, then 3 days after the meeting's time |
+| Conflicts still unresolved | every admin, one digest | after 3 days, repeated every 3 days while any remain |
+
+Every reminder has a dedupe key, so running the job twice never sends twice.
+Nothing is sent for cancelled or withdrawn meetings or deactivated members, and a
+reminder stops as soon as the person acts. The timings are constants at the top of
+`lib/notify/reminders.ts`. Hobby plans only allow one cron run a day, so there is
+no "meeting in an hour" reminder.
 
 One-time Slack setup (separate from the sign-in app's OIDC settings): add a bot
 user to a Slack app (the sign-in app or a new one), give it the bot token scopes

@@ -9,6 +9,11 @@ export type NotifyType =
   | "TIMES_PROPOSED"
   | "TIME_CONFIRMED"
   | "TIME_SET"
+  | "REMINDER_REQUEST"
+  | "REMINDER_NEEDS_TIME"
+  | "REMINDER_MEETING_SOON"
+  | "REMINDER_OUTCOME"
+  | "REMINDER_CONFLICTS"
   | "MEETING_LINK_SET"
   | "MEETING_CONFLICT";
 
@@ -128,6 +133,71 @@ export function meetingLinkMessage(a: {
   return {
     text: `*Video link added.* ${escapeSlack(a.actorName)} added the call link for "${escapeSlack(a.topic)}".${joinLink(a.meetingUrl)}`,
     path: workspacePath(a.recipient),
+  };
+}
+
+// --- Reminders ---------------------------------------------------------------
+const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
+
+export function requestReminderMessage(a: {
+  founderName: string;
+  topic: string;
+  ageDays: number;
+}): Message {
+  return {
+    text: `*Reminder:* ${escapeSlack(a.founderName)}'s meeting request "${escapeSlack(a.topic)}" has been waiting ${days(a.ageDays)} for your answer. Their hours are on hold until you accept or decline.`,
+    path: "/advisor",
+  };
+}
+
+export function needsTimeReminderMessage(a: {
+  otherName: string;
+  topic: string;
+  recipient: "advisor" | "founder";
+  // What the recipient is being asked to do.
+  action: "propose" | "pick";
+}): Message {
+  const ask =
+    a.action === "propose"
+      ? "Propose a few times, or enter one you've already agreed."
+      : `${escapeSlack(a.otherName)} proposed times. Pick one, or propose your own.`;
+  return {
+    text: `*Reminder:* "${escapeSlack(a.topic)}" with ${escapeSlack(a.otherName)} still has no time. ${ask}`,
+    path: workspacePath(a.recipient),
+  };
+}
+
+export function meetingSoonMessage(a: {
+  otherName: string;
+  topic: string;
+  time: string;
+  recipient: "advisor" | "founder";
+  meetingUrl?: string | null;
+}): Message {
+  return {
+    text: `*Coming up:* "${escapeSlack(a.topic)}" with ${escapeSlack(a.otherName)} is on ${escapeSlack(a.time)}.${a.meetingUrl ? joinLink(a.meetingUrl) : ""}`,
+    path: workspacePath(a.recipient),
+  };
+}
+
+export function outcomeReminderMessage(a: {
+  otherName: string;
+  topic: string;
+  time: string;
+  recipient: "advisor" | "founder";
+}): Message {
+  return {
+    text: `*Reminder:* did "${escapeSlack(a.topic)}" with ${escapeSlack(a.otherName)} (${escapeSlack(a.time)}) happen? Tell us in Pitch Labs Network.`,
+    path: workspacePath(a.recipient),
+  };
+}
+
+export function conflictsReminderMessage(a: { topics: string[]; total: number }): Message {
+  const list = a.topics.map((t) => `\n• ${escapeSlack(t)}`).join("");
+  const more = a.total > a.topics.length ? `\n…and ${a.total - a.topics.length} more` : "";
+  return {
+    text: `*${a.total} meeting conflict${a.total === 1 ? "" : "s"} still need${a.total === 1 ? "s" : ""} a ruling:*${list}${more}`,
+    path: "/admin/conflicts",
   };
 }
 
