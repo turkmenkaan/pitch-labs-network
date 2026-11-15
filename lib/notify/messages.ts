@@ -9,6 +9,7 @@ export type NotifyType =
   | "TIMES_PROPOSED"
   | "TIME_CONFIRMED"
   | "TIME_SET"
+  | "MEETING_LINK_SET"
   | "MEETING_CONFLICT";
 
 export type Message = {
@@ -21,6 +22,10 @@ export type Message = {
 export function escapeSlack(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+// A Slack link to a validated meeting URL. `|` and `>` would end the link early.
+const joinLink = (url: string) =>
+  `\n<${url.replace(/&/g, "&amp;").replace(/\|/g, "%7C").replace(/[<>]/g, "")}|Join the video call>`;
 
 const hours = (n: number) => `${n} hour${n === 1 ? "" : "s"}`;
 
@@ -92,9 +97,10 @@ export function timeConfirmedMessage(a: {
   recipient: "advisor" | "founder";
   topic: string;
   time: string;
+  meetingUrl?: string | null;
 }): Message {
   return {
-    text: `*Time confirmed.* ${escapeSlack(a.pickerName)} picked ${escapeSlack(a.time)} for "${escapeSlack(a.topic)}".`,
+    text: `*Time confirmed.* ${escapeSlack(a.pickerName)} picked ${escapeSlack(a.time)} for "${escapeSlack(a.topic)}".${a.meetingUrl ? joinLink(a.meetingUrl) : ""}`,
     path: workspacePath(a.recipient),
   };
 }
@@ -104,10 +110,24 @@ export function timeSetMessage(a: {
   advisorName: string;
   topic: string;
   time: string;
+  meetingUrl?: string | null;
 }): Message {
   return {
-    text: `*Meeting time set.* ${escapeSlack(a.advisorName)} set "${escapeSlack(a.topic)}" for ${escapeSlack(a.time)}.`,
+    text: `*Meeting time set.* ${escapeSlack(a.advisorName)} set "${escapeSlack(a.topic)}" for ${escapeSlack(a.time)}.${a.meetingUrl ? joinLink(a.meetingUrl) : ""}`,
     path: "/founder/meetings",
+  };
+}
+
+// Someone added or changed the video link on a meeting that has a time.
+export function meetingLinkMessage(a: {
+  actorName: string;
+  recipient: "advisor" | "founder";
+  topic: string;
+  meetingUrl: string;
+}): Message {
+  return {
+    text: `*Video link added.* ${escapeSlack(a.actorName)} added the call link for "${escapeSlack(a.topic)}".${joinLink(a.meetingUrl)}`,
+    path: workspacePath(a.recipient),
   };
 }
 

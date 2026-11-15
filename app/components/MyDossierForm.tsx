@@ -11,6 +11,7 @@ export type DossierValues = {
   howIHelp: string;
   location: string;
   linkedinUrl: string;
+  defaultMeetingUrl: string;
 };
 
 export function MyDossierForm({ values }: { values: DossierValues }) {
@@ -98,6 +99,21 @@ export function MyDossierForm({ values }: { values: DossierValues }) {
           defaultValue={values.linkedinUrl}
           placeholder="https://linkedin.com/in/…"
         />
+      </div>
+
+      <div className="field">
+        <label htmlFor="defaultMeetingUrl">Default video call link</label>
+        <input
+          id="defaultMeetingUrl"
+          name="defaultMeetingUrl"
+          type="url"
+          defaultValue={values.defaultMeetingUrl}
+          placeholder="https://meet.google.com/…"
+        />
+        <p className="note">
+          Copied onto each meeting you accept, so founders can see it right away.
+          Google Meet, Zoom, Microsoft Teams or Whereby.
+        </p>
       </div>
 
       {state?.error && (

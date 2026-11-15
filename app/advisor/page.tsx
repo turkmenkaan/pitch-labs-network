@@ -7,6 +7,7 @@ import { currentMonth, formatMonth } from "@/lib/types";
 import { redirect } from "next/navigation";
 import { getRoles } from "@/lib/session";
 import { canCancelMeeting, getMeetingStage, type MeetingStage } from "@/lib/meeting";
+import { canEditMeetingLink, visibleMeetingUrl } from "@/lib/meetingUrl";
 import { AutoRefresh } from "../components/AutoRefresh";
 import { TopBar } from "../components/TopBar";
 import { AvailabilityForm } from "../components/AvailabilityForm";
@@ -82,6 +83,11 @@ export default async function AdvisorDashboard() {
         (n) => n.type === "MEETING_CONFLICT" && !n.resolved
       ),
       canCancel: canCancelMeeting(r),
+      link: {
+        url: visibleMeetingUrl(r),
+        setBy: r.meetingUrlSetBy === "advisor" || r.meetingUrlSetBy === "founder" ? r.meetingUrlSetBy : null,
+        canEdit: canEditMeetingLink(r, "advisor"),
+      },
       proposal: proposal && {
         by: proposal.by,
         slots: proposal.slots.map((x) => ({
