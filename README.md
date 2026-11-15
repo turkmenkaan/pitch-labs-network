@@ -155,8 +155,9 @@ npm run test:e2e                # starts `npm run dev` if it isn't running
 ## Slack notifications
 
 The app DMs people on Slack when something needs their attention: a new
-request (to the advisor), a decision (to the founder), a cancellation (to the
-other side, with the reason) and a meeting conflict (to every admin).
+request (to the advisor), a decision (to the founder), proposed meeting times
+and the time picked (to the other side), a cancellation (to the other side,
+with the reason) and a meeting conflict (to every admin).
 
 How it works: each event writes a row to the `Notification` outbox table, and
 the message is sent right after the response (`after()`), so Slack being slow or

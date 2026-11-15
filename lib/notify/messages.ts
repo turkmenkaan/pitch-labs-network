@@ -6,6 +6,9 @@ export type NotifyType =
   | "REQUEST_SENT"
   | "REQUEST_DECIDED"
   | "MEETING_CANCELLED"
+  | "TIMES_PROPOSED"
+  | "TIME_CONFIRMED"
+  | "TIME_SET"
   | "MEETING_CONFLICT";
 
 export type Message = {
@@ -63,6 +66,48 @@ export function meetingCancelledMessage(a: {
     text: `*Meeting cancelled.* ${escapeSlack(a.cancelledByName)} cancelled "${escapeSlack(a.topic)}".\n> ${escapeSlack(a.reason).replace(/\n/g, "\n> ")}`,
     // Sent to the other side, so link to their workspace.
     path: a.cancelledBy === "advisor" ? "/founder/meetings" : "/advisor",
+  };
+}
+
+// Where the person being told should go: the other side of whoever acted.
+const workspacePath = (recipient: "advisor" | "founder") =>
+  recipient === "advisor" ? "/advisor" : "/founder/meetings";
+
+// `times` are already formatted in Eastern Time (see fmtMeetingTime).
+export function timesProposedMessage(a: {
+  proposerName: string;
+  recipient: "advisor" | "founder";
+  topic: string;
+  times: string[];
+}): Message {
+  const list = a.times.map((t) => `\n• ${escapeSlack(t)}`).join("");
+  return {
+    text: `*Times proposed.* ${escapeSlack(a.proposerName)} suggested ${a.times.length === 1 ? "a time" : "times"} for "${escapeSlack(a.topic)}":${list}\nPick one, or propose your own.`,
+    path: workspacePath(a.recipient),
+  };
+}
+
+export function timeConfirmedMessage(a: {
+  pickerName: string;
+  recipient: "advisor" | "founder";
+  topic: string;
+  time: string;
+}): Message {
+  return {
+    text: `*Time confirmed.* ${escapeSlack(a.pickerName)} picked ${escapeSlack(a.time)} for "${escapeSlack(a.topic)}".`,
+    path: workspacePath(a.recipient),
+  };
+}
+
+// The advisor entered a time they had already agreed outside the app.
+export function timeSetMessage(a: {
+  advisorName: string;
+  topic: string;
+  time: string;
+}): Message {
+  return {
+    text: `*Meeting time set.* ${escapeSlack(a.advisorName)} set "${escapeSlack(a.topic)}" for ${escapeSlack(a.time)}.`,
+    path: "/founder/meetings",
   };
 }
 

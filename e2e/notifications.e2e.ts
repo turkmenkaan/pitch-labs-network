@@ -1,6 +1,6 @@
 import { db, expect, test } from "./fixtures";
 import { createRequest, uniqueTopic } from "./helpers/data";
-import { card, sendRequest } from "./helpers/flows";
+import { card, enterAgreedTime, proposeTimes, sendRequest } from "./helpers/flows";
 
 // The server runs with NOTIFY_MODE=log (see playwright.config.ts), so nothing
 // reaches Slack. Notifications are recorded in the outbox after the response is
@@ -147,6 +147,201 @@ test("a conflict notifies admins, once per admin", async ({ founder, advisor, ad
   expect(
     await db().notification.count({ where: { dedupeKey: `conflict:${request.id}:${admin.row.id}` } })
   ).toBe(1);
+});
+
+// --- Agreeing a meeting time -------------------------------------------------
+const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+
+const rowsWithPrefix = (prefix: string) =>
+  db().notification.findMany({ where: { dedupeKey: { startsWith: prefix } } });
+
+async function waitForRows(prefix: string, count: number) {
+  await expect.poll(async () => (await rowsWithPrefix(prefix)).length, { timeout: 30_000 }).toBe(count);
+  return rowsWithPrefix(prefix);
+}
+
+test("proposing times notifies the other side, and proposing again notifies again", async ({
+  founder,
+  advisor,
+}) => {
+  const topic = uniqueTopic("Notify propose");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await proposeTimes(mine, [inDays(2), inDays(3)]);
+  await expect(mine.locator(".pill")).toHaveText("Waiting on founder");
+
+  const [first] = await waitForRows(`times-proposed:${request.id}:`, 1);
+  expect(first).toMatchObject({ type: "TIMES_PROPOSED", recipientEmail: founder.email });
+  const text = payloadText(first);
+  expect(text).toContain(advisor.row.name);
+  expect(text).toContain(topic);
+  expect(text).toContain("suggested times");
+  expect(text).toMatch(/ET/);
+  expect(text.match(/•/g)).toHaveLength(2);
+
+  // Replacing the times is a new round, so they hear about it again.
+  await mine.getByText("Change proposed times").click();
+  await proposeTimes(mine.locator("details"), [inDays(6)]);
+  const rows = await waitForRows(`times-proposed:${request.id}:`, 2);
+  expect(rows.every((r) => r.recipientEmail === founder.email)).toBe(true);
+  expect(rows.some((r) => payloadText(r).includes("suggested a time"))).toBe(true);
+});
+
+test("picking a time notifies whoever proposed it", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify pick");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  await advisor.page.goto("/advisor");
+  await proposeTimes(card(advisor.page, topic), [inDays(2), inDays(3)]);
+  await waitForRows(`times-proposed:${request.id}:`, 1);
+
+  await founder.page.goto("/founder/meetings");
+  const theirs = card(founder.page, topic);
+  const options = theirs.locator("label.slot-option");
+  await expect(options).toHaveCount(2);
+  await options.nth(1).locator("input").check();
+  await theirs.getByRole("button", { name: "Confirm this time" }).click();
+  await expect(theirs.locator(".pill")).toHaveText("Upcoming");
+
+  const [confirmed] = await waitForRows(`time-confirmed:${request.id}:`, 1);
+  expect(confirmed).toMatchObject({ type: "TIME_CONFIRMED", recipientEmail: advisor.email });
+  expect(payloadText(confirmed)).toContain(founder.row.name);
+  expect(payloadText(confirmed)).toContain("ET");
+  // The proposer isn't told about their own proposal.
+  expect(
+    await db().notification.count({
+      where: { dedupeKey: { startsWith: `times-proposed:${request.id}:` }, recipientEmail: advisor.email },
+    })
+  ).toBe(0);
+});
+
+test("the founder can propose first and the advisor is told", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify founder proposes");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  await founder.page.goto("/founder/meetings");
+  await proposeTimes(card(founder.page, topic), [inDays(4)]);
+
+  const [row] = await waitForRows(`times-proposed:${request.id}:`, 1);
+  expect(row).toMatchObject({ type: "TIMES_PROPOSED", recipientEmail: advisor.email });
+  expect(payloadText(row)).toContain(founder.row.name);
+});
+
+test("refused scheduling steps send nothing", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify refused times");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  // Times in the past are refused.
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await proposeTimes(mine, [inDays(-1)]);
+  await expect(mine).toContainText("Pick times in the future.");
+
+  // A pick that went stale is refused: the proposal was replaced under it.
+  await proposeTimes(mine, [inDays(2)]);
+  await expect(mine.locator(".pill")).toHaveText("Waiting on founder");
+  await founder.page.goto("/founder/meetings");
+  const theirs = card(founder.page, topic);
+  await expect(theirs.getByRole("button", { name: "Confirm this time" })).toBeVisible();
+  await mine.getByText("Change proposed times").click();
+  await proposeTimes(mine.locator("details"), [inDays(9)]);
+  await expect
+    .poll(async () => (await db().meetingSlot.count({ where: { meetingRequestId: request.id, status: "SUPERSEDED" } })))
+    .toBe(1);
+  await theirs.getByRole("button", { name: "Confirm this time" }).click();
+  await expect(theirs).toContainText("That time was already taken or withdrawn.");
+
+  await advisor.page.waitForTimeout(3000);
+  // Only the two successful proposals produced notifications; no confirmation.
+  expect(await rowsWithPrefix(`times-proposed:${request.id}:`)).toHaveLength(2);
+  expect(await rowsWithPrefix(`time-confirmed:${request.id}:`)).toHaveLength(0);
+});
+
+test("entering an agreed time tells the founder", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify direct time");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await enterAgreedTime(mine, inDays(3));
+  await expect(mine.locator(".pill")).toHaveText("Upcoming");
+
+  const [row] = await waitForRows(`time-set:${request.id}:`, 1);
+  expect(row).toMatchObject({ type: "TIME_SET", recipientEmail: founder.email });
+  expect(payloadText(row)).toContain(advisor.row.name);
+  expect(payloadText(row)).toContain(topic);
+  expect(payloadText(row)).toContain("ET");
+
+  // The advisor isn't told about their own action.
+  expect(
+    await db().notification.count({
+      where: { dedupeKey: { startsWith: `time-set:${request.id}:` }, recipientEmail: advisor.email },
+    })
+  ).toBe(0);
+});
+
+test("a refused agreed time sends nothing", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify refused direct time");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await enterAgreedTime(mine, inDays(-1));
+  await expect(mine).toContainText("Pick a time in the future.");
+
+  await advisor.page.waitForTimeout(3000);
+  expect(await rowsWithPrefix(`time-set:${request.id}:`)).toHaveLength(0);
+});
+
+test("a deactivated member isn't told about proposed times", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify deactivated times");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+  await db().founder.update({ where: { id: founder.row.id }, data: { deactivatedAt: new Date() } });
+
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await proposeTimes(mine, [inDays(2)]);
+  await expect(mine.locator(".pill")).toHaveText("Waiting on founder");
+
+  await advisor.page.waitForTimeout(3000);
+  expect(await rowsWithPrefix(`times-proposed:${request.id}:`)).toHaveLength(0);
 });
 
 test.describe("admin notifications page", () => {

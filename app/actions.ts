@@ -19,14 +19,18 @@ import {
 } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkReason } from "@/lib/reason";
-import { notify } from "@/lib/notify";
+import { notify, type Outgoing } from "@/lib/notify";
 import {
   meetingCancelledMessage,
   meetingConflictMessage,
   requestDecidedMessage,
   requestSentMessage,
+  timeConfirmedMessage,
+  timeSetMessage,
+  timesProposedMessage,
 } from "@/lib/notify/messages";
 import { canChangeTime } from "@/lib/meeting";
+import { fmtMeetingTime } from "@/lib/format";
 import { checkSlots, otherSide, type Side } from "@/lib/slots";
 import { parseEasternInput } from "@/lib/time";
 import { isAllowedStage } from "@/lib/profile";
@@ -320,7 +324,18 @@ export async function scheduleMeeting(
     return { ok: false, error: "This meeting can't be rescheduled any more." };
   }
 
-  // TODO(later): generate calendar invite + video link, notify the founder.
+  // Entering the same time again doesn't tell them twice; a new time does.
+  await notifyOtherSide(requestId, "advisor", ({ actorName, topic }) => ({
+    type: "TIME_SET",
+    dedupeKey: `time-set:${requestId}:${scheduledAt.getTime()}`,
+    message: timeSetMessage({
+      advisorName: actorName,
+      topic,
+      time: fmtMeetingTime(scheduledAt, { weekday: true }),
+    }),
+  }));
+
+  // TODO(later): generate a calendar invite + video link.
   revalidatePath("/advisor");
   revalidatePath("/founder/meetings");
   return { ok: true, message: "Meeting time saved." };
@@ -335,6 +350,29 @@ export async function scheduleMeeting(
 function revalidateScheduling() {
   revalidatePath("/advisor");
   revalidatePath("/founder/meetings");
+}
+
+// Tells the other side about a scheduling step (never the person who acted, and
+// never a deactivated member).
+async function notifyOtherSide(
+  requestId: string,
+  actor: Side,
+  build: (a: {
+    actorName: string;
+    topic: string;
+    recipient: Side;
+  }) => Omit<Outgoing, "recipientEmail">
+) {
+  const m = await prisma.meetingRequest.findUnique({
+    where: { id: requestId },
+    include: { advisor: true, founder: true },
+  });
+  if (!m) return;
+  const other = actor === "advisor" ? m.founder : m.advisor;
+  const me = actor === "advisor" ? m.advisor : m.founder;
+  if (other.deactivatedAt) return;
+  const n = build({ actorName: me.name, topic: m.topic, recipient: otherSide(actor) });
+  notify([{ ...n, recipientEmail: other.email }]);
 }
 
 async function proposeTimes(
@@ -380,6 +418,19 @@ async function proposeTimes(
     return true;
   });
   if (!done) return { ok: false, error: "This meeting's time can't be changed any more." };
+
+  // Each round is its own notification, so proposing again tells them again.
+  const round = Date.now();
+  await notifyOtherSide(requestId, side, ({ actorName, topic, recipient }) => ({
+    type: "TIMES_PROPOSED",
+    dedupeKey: `times-proposed:${requestId}:${round}`,
+    message: timesProposedMessage({
+      proposerName: actorName,
+      recipient,
+      topic,
+      times: checked.slots.map((d) => fmtMeetingTime(d, { weekday: true })),
+    }),
+  }));
 
   revalidateScheduling();
   return { ok: true, message: "Times sent." };
@@ -464,6 +515,17 @@ async function pickTime(
     return slot;
   });
   if (!picked) return { ok: false, error: gone };
+
+  await notifyOtherSide(requestId, side, ({ actorName, topic, recipient }) => ({
+    type: "TIME_CONFIRMED",
+    dedupeKey: `time-confirmed:${requestId}:${picked.id}`,
+    message: timeConfirmedMessage({
+      pickerName: actorName,
+      recipient,
+      topic,
+      time: fmtMeetingTime(picked.startsAt, { weekday: true }),
+    }),
+  }));
 
   revalidateScheduling();
   return { ok: true, message: "Time confirmed." };

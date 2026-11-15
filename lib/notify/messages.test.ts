@@ -5,6 +5,9 @@ import {
   meetingConflictMessage,
   requestDecidedMessage,
   requestSentMessage,
+  timeConfirmedMessage,
+  timeSetMessage,
+  timesProposedMessage,
   withLink,
 } from "./messages";
 import { backoffMs, canRetry, isPermanentSlackError, MAX_ATTEMPTS } from "./retry";
@@ -47,6 +50,52 @@ describe("messages", () => {
     const base = { cancelledByName: "X", topic: "T", reason: "r" };
     expect(meetingCancelledMessage({ ...base, cancelledBy: "advisor" }).path).toBe("/founder/meetings");
     expect(meetingCancelledMessage({ ...base, cancelledBy: "founder" }).path).toBe("/advisor");
+  });
+
+  it("a proposal lists each time and points at the recipient's workspace", () => {
+    const m = timesProposedMessage({
+      proposerName: "Bo",
+      recipient: "founder",
+      topic: "Pricing",
+      times: ["Nov 20, 2:00 PM ET", "Nov 21, 10:00 AM ET"],
+    });
+    expect(m.text).toContain("suggested times");
+    expect(m.text).toContain("• Nov 20, 2:00 PM ET");
+    expect(m.text).toContain("• Nov 21, 10:00 AM ET");
+    expect(m.path).toBe("/founder/meetings");
+    expect(
+      timesProposedMessage({ proposerName: "Ada", recipient: "advisor", topic: "T", times: ["x"] })
+    ).toMatchObject({ path: "/advisor" });
+  });
+
+  it("a single proposed time reads naturally and is escaped", () => {
+    const m = timesProposedMessage({
+      proposerName: "<b>",
+      recipient: "advisor",
+      topic: "T",
+      times: ["Nov 20, 2:00 PM ET"],
+    });
+    expect(m.text).toContain("suggested a time");
+    expect(m.text).toContain("&lt;b&gt;");
+  });
+
+  it("a confirmation names the picked time", () => {
+    const m = timeConfirmedMessage({
+      pickerName: "Ada",
+      recipient: "advisor",
+      topic: "Pricing",
+      time: "Nov 20, 2:00 PM ET",
+    });
+    expect(m.text).toContain("Ada picked Nov 20, 2:00 PM ET");
+    expect(m.path).toBe("/advisor");
+  });
+
+  it("a directly entered time tells the founder, escaped", () => {
+    const m = timeSetMessage({ advisorName: "Bo", topic: "<T>", time: "Nov 20, 2:00 PM ET" });
+    expect(m.text).toContain("Bo set");
+    expect(m.text).toContain("Nov 20, 2:00 PM ET");
+    expect(m.text).toContain("&lt;T&gt;");
+    expect(m.path).toBe("/founder/meetings");
   });
 
   it("conflict goes to the admin area", () => {
