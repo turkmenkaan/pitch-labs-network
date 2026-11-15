@@ -12,6 +12,7 @@ import type { MeetingStage } from "@/lib/meeting";
 import { CancelForm, CancelMeeting } from "./CancelMeeting";
 import { TimeNegotiation, type ProposalView } from "./TimeNegotiation";
 import { STAGE_LABELS } from "@/lib/meeting";
+import { MeetingLink, type LinkView } from "./MeetingLink";
 
 export type MeetingView = {
   id: string;
@@ -28,6 +29,7 @@ export type MeetingView = {
   hasConflict: boolean;
   canCancel: boolean;
   proposal: ProposalView;
+  link: LinkView;
 };
 
 const STAGE_PILL: Record<MeetingStage, string> = {
@@ -228,6 +230,17 @@ export function MeetingCard({ meeting: m }: { meeting: MeetingView }) {
   return (
     <article className="card req meeting">
       <Header m={m} />
+
+      {m.stage !== "NEEDS_FEEDBACK" &&
+        m.stage !== "COMPLETED_MET" &&
+        m.stage !== "DID_NOT_MEET" && (
+          <MeetingLink
+            requestId={m.id}
+            side="advisor"
+            otherName={m.founderName}
+            link={m.link}
+          />
+        )}
 
       {(m.stage === "NEEDS_SCHEDULE" ||
         m.stage === "TIME_PROPOSED" ||

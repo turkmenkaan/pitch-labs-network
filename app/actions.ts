@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -23,6 +24,7 @@ import { notify, type Outgoing } from "@/lib/notify";
 import {
   meetingCancelledMessage,
   meetingConflictMessage,
+  meetingLinkMessage,
   requestDecidedMessage,
   requestSentMessage,
   timeConfirmedMessage,
@@ -30,6 +32,7 @@ import {
   timesProposedMessage,
 } from "@/lib/notify/messages";
 import { canChangeTime } from "@/lib/meeting";
+import { canEditMeetingLink, parseMeetingUrl, visibleMeetingUrl } from "@/lib/meetingUrl";
 import { fmtMeetingTime } from "@/lib/format";
 import { checkSlots, otherSide, type Side } from "@/lib/slots";
 import { parseEasternInput } from "@/lib/time";
@@ -90,6 +93,7 @@ export async function updateMyDossier(
   const howIHelp = String(formData.get("howIHelp") ?? "").trim();
   const location = String(formData.get("location") ?? "").trim();
   const linkedinUrl = String(formData.get("linkedinUrl") ?? "").trim();
+  const defaultLink = parseMeetingUrl(String(formData.get("defaultMeetingUrl") ?? ""));
 
   if (!title || !expertise || !bio) {
     return { ok: false, error: "Title, expertise, and intro are required." };
@@ -97,6 +101,7 @@ export async function updateMyDossier(
   if (linkedinUrl && !/^https?:\/\//i.test(linkedinUrl)) {
     return { ok: false, error: "LinkedIn URL should start with http(s)://" };
   }
+  if ("error" in defaultLink) return { ok: false, error: defaultLink.error };
 
   await prisma.advisor.update({
     where: { id: current.id },
@@ -108,6 +113,7 @@ export async function updateMyDossier(
       howIHelp: howIHelp || null,
       location: location || null,
       linkedinUrl: linkedinUrl || null,
+      defaultMeetingUrl: defaultLink.url,
     },
   });
 
@@ -222,6 +228,14 @@ export async function decideRequest(
     }
   }
 
+  // The advisor's default video link is copied onto a meeting they accept, so
+  // changing the default later doesn't rewrite meetings already agreed.
+  const defaultLink =
+    decision === "ACCEPTED" && current.defaultMeetingUrl
+      ? parseMeetingUrl(current.defaultMeetingUrl)
+      : null;
+  const copiedUrl = defaultLink && "url" in defaultLink ? defaultLink.url : null;
+
   // Only while still pending, so a founder's withdrawal can't be overwritten.
   const decided = await prisma.meetingRequest.updateMany({
     where: { id: requestId, status: "PENDING" },
@@ -229,6 +243,9 @@ export async function decideRequest(
       status: decision,
       decisionNote: note || null,
       decidedAt: new Date(),
+      ...(copiedUrl
+        ? { meetingUrl: copiedUrl, meetingUrlSetBy: "advisor", meetingUrlSetAt: new Date() }
+        : {}),
     },
   });
   if (decided.count === 0) {
@@ -325,17 +342,18 @@ export async function scheduleMeeting(
   }
 
   // Entering the same time again doesn't tell them twice; a new time does.
-  await notifyOtherSide(requestId, "advisor", ({ actorName, topic }) => ({
+  await notifyOtherSide(requestId, "advisor", ({ actorName, topic, meetingUrl }) => ({
     type: "TIME_SET",
     dedupeKey: `time-set:${requestId}:${scheduledAt.getTime()}`,
     message: timeSetMessage({
       advisorName: actorName,
       topic,
       time: fmtMeetingTime(scheduledAt, { weekday: true }),
+      meetingUrl,
     }),
   }));
 
-  // TODO(later): generate a calendar invite + video link.
+  // TODO(later): generate a calendar invite.
   revalidatePath("/advisor");
   revalidatePath("/founder/meetings");
   return { ok: true, message: "Meeting time saved." };
@@ -361,6 +379,7 @@ async function notifyOtherSide(
     actorName: string;
     topic: string;
     recipient: Side;
+    meetingUrl: string | null;
   }) => Omit<Outgoing, "recipientEmail">
 ) {
   const m = await prisma.meetingRequest.findUnique({
@@ -371,7 +390,12 @@ async function notifyOtherSide(
   const other = actor === "advisor" ? m.founder : m.advisor;
   const me = actor === "advisor" ? m.advisor : m.founder;
   if (other.deactivatedAt) return;
-  const n = build({ actorName: me.name, topic: m.topic, recipient: otherSide(actor) });
+  const n = build({
+    actorName: me.name,
+    topic: m.topic,
+    recipient: otherSide(actor),
+    meetingUrl: visibleMeetingUrl(m),
+  });
   notify([{ ...n, recipientEmail: other.email }]);
 }
 
@@ -516,7 +540,7 @@ async function pickTime(
   });
   if (!picked) return { ok: false, error: gone };
 
-  await notifyOtherSide(requestId, side, ({ actorName, topic, recipient }) => ({
+  await notifyOtherSide(requestId, side, ({ actorName, topic, recipient, meetingUrl }) => ({
     type: "TIME_CONFIRMED",
     dedupeKey: `time-confirmed:${requestId}:${picked.id}`,
     message: timeConfirmedMessage({
@@ -524,6 +548,7 @@ async function pickTime(
       recipient,
       topic,
       time: fmtMeetingTime(picked.startsAt, { weekday: true }),
+      meetingUrl,
     }),
   }));
 
@@ -558,6 +583,106 @@ export async function pickTimeAsFounder(
     "founder",
     current.id,
     String(formData.get("slotId") ?? "")
+  );
+}
+
+// --- Video call link -----------------------------------------------------
+// One link per accepted meeting, owned by whoever set it: only they can change
+// or clear it. With no link yet, either side can add one once a time is agreed.
+// (An advisor's default link is copied on when they accept; see decideRequest.)
+async function setMeetingLink(
+  requestId: string,
+  side: Side,
+  memberId: string,
+  rawUrl: string
+): Promise<ActionState> {
+  const parsed = parseMeetingUrl(rawUrl);
+  if ("error" in parsed) return { ok: false, error: parsed.error };
+
+  const request = await prisma.meetingRequest.findUnique({ where: { id: requestId } });
+  const mine =
+    request && (side === "advisor" ? request.advisorId : request.founderId) === memberId;
+  if (!request || !mine) return { ok: false, error: "Meeting not found." };
+
+  if (!canEditMeetingLink(request, side)) {
+    if (request.status !== "ACCEPTED" || request.advisorMet != null ||
+        request.founderMet != null || request.adminMet != null) {
+      return { ok: false, error: "This meeting is closed, so its video link can't be changed." };
+    }
+    if (request.meetingUrl) {
+      return {
+        ok: false,
+        error: "The other side added this link, so only they can change it.",
+      };
+    }
+    return { ok: false, error: "Add the video link once a time is confirmed." };
+  }
+  if (!parsed.url && !request.meetingUrl) return { ok: true, message: "No link to remove." };
+  if (parsed.url === request.meetingUrl) return { ok: true, message: "Link saved." };
+
+  // Atomic, so a cancel or an outcome can't slip in, and the owner can't change.
+  const saved = await prisma.meetingRequest.updateMany({
+    where: {
+      id: requestId,
+      status: "ACCEPTED",
+      advisorMet: null,
+      founderMet: null,
+      adminMet: null,
+      meetingUrl: request.meetingUrl,
+      ...(request.meetingUrl
+        ? { meetingUrlSetBy: side }
+        : { scheduledAt: { not: null } }),
+    },
+    data: parsed.url
+      ? { meetingUrl: parsed.url, meetingUrlSetBy: side, meetingUrlSetAt: new Date() }
+      : { meetingUrl: null, meetingUrlSetBy: null, meetingUrlSetAt: null },
+  });
+  if (saved.count === 0) {
+    return { ok: false, error: "This meeting changed. Reload and try again." };
+  }
+
+  // Tell the other side about a new or changed link once there is a time.
+  if (parsed.url && request.scheduledAt) {
+    const url = parsed.url;
+    const hash = createHash("sha1").update(url).digest("hex").slice(0, 12);
+    await notifyOtherSide(requestId, side, ({ actorName, topic, recipient }) => ({
+      type: "MEETING_LINK_SET",
+      dedupeKey: `meeting-link:${requestId}:${hash}`,
+      message: meetingLinkMessage({ actorName, recipient, topic, meetingUrl: url }),
+    }));
+  }
+
+  revalidateScheduling();
+  return { ok: true, message: parsed.url ? "Link saved." : "Link removed." };
+}
+
+export async function setMeetingLinkAsAdvisor(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingAdvisor();
+  return setMeetingLink(
+    String(formData.get("requestId") ?? ""),
+    "advisor",
+    current.id,
+    String(formData.get("meetingUrl") ?? "")
+  );
+}
+
+export async function setMeetingLinkAsFounder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const blocked = await previewBlock();
+  if (blocked) return blocked;
+  const { current } = await getActingFounder();
+  return setMeetingLink(
+    String(formData.get("requestId") ?? ""),
+    "founder",
+    current.id,
+    String(formData.get("meetingUrl") ?? "")
   );
 }
 
@@ -936,6 +1061,9 @@ async function cancelMeeting(
       cancelledAt: new Date(),
       cancelledBy: side,
       cancelReason: checked.reason,
+      meetingUrl: null,
+      meetingUrlSetBy: null,
+      meetingUrlSetAt: null,
     },
   });
 

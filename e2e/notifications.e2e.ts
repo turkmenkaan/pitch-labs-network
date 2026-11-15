@@ -412,3 +412,82 @@ test.describe("retry sweep endpoint", () => {
       .toBe("LOGGED");
   });
 });
+
+const ZOOM = "https://us02web.zoom.us/j/123456789";
+
+test("adding a link after a time is agreed tells the other side, once per link", async ({
+  founder,
+  advisor,
+}) => {
+  const topic = uniqueTopic("Notify link");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+    scheduledAt: inDays(2),
+  });
+
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await mine.getByLabel("Video call link").fill(ZOOM);
+  await mine.getByRole("button", { name: "Add link" }).click();
+  await expect(mine.getByRole("link", { name: "Join video call" })).toBeVisible();
+
+  const [row] = await waitForRows(`meeting-link:${request.id}:`, 1);
+  expect(row).toMatchObject({ type: "MEETING_LINK_SET", recipientEmail: founder.email });
+  expect(payloadText(row)).toContain(advisor.row.name);
+  expect(payloadText(row)).toContain(topic);
+  expect(payloadText(row)).toContain(`<${ZOOM}|Join the video call>`);
+});
+
+test("a link that is refused sends nothing", async ({ founder, advisor }) => {
+  const topic = uniqueTopic("Notify bad link");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+    scheduledAt: inDays(2),
+  });
+  await advisor.page.goto("/advisor");
+  const mine = card(advisor.page, topic);
+  await mine
+    .locator('form:has(input[name="meetingUrl"])')
+    .evaluate((f) => ((f as HTMLFormElement).noValidate = true));
+  await mine.getByLabel("Video call link").fill("https://example.com/room");
+  await mine.getByRole("button", { name: "Add link" }).click();
+  await expect(mine).toContainText("Use a Google Meet, Zoom");
+  await expect
+    .poll(() => db().notification.count({ where: { dedupeKey: { startsWith: `meeting-link:${request.id}` } } }))
+    .toBe(0);
+});
+
+test("confirming a time sends the video link along when the meeting has one", async ({
+  founder,
+  advisor,
+}) => {
+  const topic = uniqueTopic("Notify pick link");
+  const request = await createRequest({
+    advisorId: advisor.row.id,
+    founderId: founder.row.id,
+    topic,
+    status: "ACCEPTED",
+  });
+  await db().meetingRequest.update({
+    where: { id: request.id },
+    data: { meetingUrl: ZOOM, meetingUrlSetBy: "advisor", meetingUrlSetAt: new Date() },
+  });
+
+  await advisor.page.goto("/advisor");
+  await proposeTimes(card(advisor.page, topic), [inDays(2)]);
+  await founder.page.goto("/founder/meetings");
+  const theirs = card(founder.page, topic);
+  await theirs.locator("label.slot-option input").first().check();
+  await theirs.getByRole("button", { name: "Confirm this time" }).click();
+  await expect(theirs.locator(".pill")).toHaveText("Upcoming");
+
+  const [row] = await waitForRows(`time-confirmed:${request.id}:`, 1);
+  expect(row).toMatchObject({ type: "TIME_CONFIRMED", recipientEmail: advisor.email });
+  expect(payloadText(row)).toContain(`<${ZOOM}|Join the video call>`);
+});

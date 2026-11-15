@@ -5,6 +5,7 @@ import { fmtMeetingTime } from "@/lib/format";
 import { currentMonth, formatMonth } from "@/lib/types";
 import { getFounderUsage } from "@/lib/guardrails";
 import { canCancelMeeting, getFounderStage, type FounderStage } from "@/lib/meeting";
+import { canEditMeetingLink, visibleMeetingUrl } from "@/lib/meetingUrl";
 import { openProposal } from "@/lib/slots";
 import { AutoRefresh } from "@/app/components/AutoRefresh";
 import { TopBar } from "@/app/components/TopBar";
@@ -60,6 +61,11 @@ export default async function FounderMeetings() {
       canCancel: canCancelMeeting(r),
       cancelledBy: r.cancelledBy,
       cancelReason: r.cancelReason,
+      link: {
+        url: visibleMeetingUrl(r),
+        setBy: r.meetingUrlSetBy === "advisor" || r.meetingUrlSetBy === "founder" ? r.meetingUrlSetBy : null,
+        canEdit: canEditMeetingLink(r, "founder"),
+      },
       proposal: proposal && {
         by: proposal.by,
         slots: proposal.slots.map((x) => ({

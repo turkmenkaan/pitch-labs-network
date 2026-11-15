@@ -9,6 +9,7 @@ import {
 } from "../actions";
 import { CancelMeeting } from "./CancelMeeting";
 import { TimeNegotiation, type ProposalView } from "./TimeNegotiation";
+import { MeetingLink, type LinkView } from "./MeetingLink";
 import { FOUNDER_STAGE_LABELS, type FounderStage } from "@/lib/meeting";
 
 export type FounderMeetingView = {
@@ -27,6 +28,7 @@ export type FounderMeetingView = {
   cancelledBy: string | null; // "advisor" | "founder"
   cancelReason: string | null;
   proposal: ProposalView;
+  link: LinkView;
 };
 
 const STAGE_PILL: Record<FounderStage, string> = {
@@ -105,6 +107,19 @@ export function FounderMeetingCard({ meeting: m }: { meeting: FounderMeetingView
           {FOUNDER_STAGE_LABELS[m.stage]}
         </span>
       </div>
+
+      {(m.stage === "ACCEPTED" ||
+        m.stage === "TIME_PROPOSED" ||
+        m.stage === "PICK_A_TIME" ||
+        m.stage === "UPCOMING" ||
+        m.stage === "NEEDS_ANSWER") && (
+        <MeetingLink
+          requestId={m.id}
+          side="founder"
+          otherName={m.advisorName}
+          link={m.link}
+        />
+      )}
 
       {m.stage === "WAITING_ADVISOR" && (
         <>

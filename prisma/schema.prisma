@@ -20,6 +20,8 @@ model Advisor {
   howIHelp     String? // advising style / what they offer founders
   location     String?
   linkedinUrl  String?
+  // Video call link copied onto each meeting when this advisor accepts it.
+  defaultMeetingUrl String?
   // Set by an admin to block login and hide the advisor from the directory.
   // Members with meeting history can't be deleted, only deactivated.
   deactivatedAt DateTime?
@@ -100,6 +102,11 @@ model MeetingRequest {
   cancelledAt    DateTime?
   cancelledBy    String?
   cancelReason   String? // required when cancelling
+  // Video call link (see lib/meetingUrl.ts). Owned by whoever set it
+  // ("advisor" | "founder"); cleared when the meeting is cancelled.
+  meetingUrl      String?
+  meetingUrlSetBy String?
+  meetingUrlSetAt DateTime?
 
   notifications  AdminNotification[]
   slots          MeetingSlot[]
