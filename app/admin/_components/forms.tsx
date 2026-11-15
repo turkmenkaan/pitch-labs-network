@@ -60,6 +60,7 @@ export function EditMemberForm({
   email,
   monthlyHoursLimit,
   advisorCallLimit,
+  alsoRoles = [],
 }: {
   type: "advisor" | "founder";
   id: string;
@@ -67,6 +68,8 @@ export function EditMemberForm({
   email: string;
   monthlyHoursLimit?: number | null;
   advisorCallLimit?: number | null;
+  /** Other roles held under this same email; they follow an email change. */
+  alsoRoles?: string[];
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     updateMember,
@@ -84,6 +87,13 @@ export function EditMemberForm({
         <span>Slack email</span>
         <input name="email" type="email" defaultValue={email} required />
       </label>
+      {alsoRoles.length > 0 && (
+        <p className="adm-sub" data-testid="shared-email-note">
+          This person is also {alsoRoles.join(" and ")}. Changing the email updates{" "}
+          {alsoRoles.length === 1 ? "that role" : "those roles"} too, and an admin who
+          changes their own email will be signed out.
+        </p>
+      )}
       {type === "founder" && (
         <>
           <label className="adm-field">

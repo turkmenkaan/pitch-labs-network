@@ -15,7 +15,8 @@
     "db:migrate:staging": "tsx scripts/migrate.ts staging",
     "db:migrate:prod": "tsx scripts/migrate.ts prod",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint ."
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -34,6 +35,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.9",
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^3.2.7"
