@@ -42,6 +42,7 @@ export default async function MyDossier({
               howIHelp: current.howIHelp ?? "",
               location: current.location ?? "",
               linkedinUrl: current.linkedinUrl ?? "",
+              defaultMeetingUrl: current.defaultMeetingUrl ?? "",
             }}
           />
         </section>

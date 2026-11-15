@@ -3,6 +3,7 @@ import {
   escapeSlack,
   meetingCancelledMessage,
   meetingConflictMessage,
+  meetingLinkMessage,
   requestDecidedMessage,
   requestSentMessage,
   timeConfirmedMessage,
@@ -88,6 +89,30 @@ describe("messages", () => {
     });
     expect(m.text).toContain("Ada picked Nov 20, 2:00 PM ET");
     expect(m.path).toBe("/advisor");
+  });
+
+  it("confirmations carry the video link when there is one", () => {
+    const base = { pickerName: "Ada", recipient: "advisor" as const, topic: "T", time: "Nov 20, 2:00 PM ET" };
+    expect(timeConfirmedMessage(base).text).not.toContain("Join the video call");
+    expect(
+      timeConfirmedMessage({ ...base, meetingUrl: "https://zoom.us/j/1?a=1&b=2" }).text
+    ).toContain("<https://zoom.us/j/1?a=1&amp;b=2|Join the video call>");
+    expect(
+      timeSetMessage({ advisorName: "Bo", topic: "T", time: "x", meetingUrl: "https://zoom.us/j/1" }).text
+    ).toContain("<https://zoom.us/j/1|Join the video call>");
+  });
+
+  it("a new link tells the other side where to go", () => {
+    const m = meetingLinkMessage({
+      actorName: "Bo",
+      recipient: "founder",
+      topic: "<T>",
+      meetingUrl: "https://meet.google.com/abc",
+    });
+    expect(m.text).toContain("Bo added the call link");
+    expect(m.text).toContain("&lt;T&gt;");
+    expect(m.text).toContain("<https://meet.google.com/abc|Join the video call>");
+    expect(m.path).toBe("/founder/meetings");
   });
 
   it("a directly entered time tells the founder, escaped", () => {
